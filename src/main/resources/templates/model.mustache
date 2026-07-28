@@ -1,0 +1,70 @@
+{{! allcrud-generator override of openapi-generator's embedded JavaSpring/model.mustache
+    (org.openapitools:openapi-generator, version pinned in build.gradle.kts).
+    Only change vs. the original: import AbstractEntityVO so generated VOs can
+    implement it (see pojo.mustache for the "implements" clause itself).
+    Files not present in this templates/ dir fall back automatically to the
+    embedded template of the same name - see GeneratorTemplateContentLocator. }}
+package {{package}};
+
+import java.net.URI;
+import java.util.Objects;
+import com.techmath.allcrud.entity.AbstractEntityVO;
+{{#imports}}import {{import}};
+{{/imports}}
+{{#openApiNullable}}
+import org.openapitools.jackson.nullable.JsonNullable;
+{{/openApiNullable}}
+{{#serializableModel}}
+import java.io.Serializable;
+{{/serializableModel}}
+import java.time.OffsetDateTime;
+{{#useBeanValidation}}
+import {{javaxPackage}}.validation.Valid;
+import {{javaxPackage}}.validation.constraints.*;
+{{/useBeanValidation}}
+{{^useBeanValidation}}
+import {{javaxPackage}}.validation.constraints.NotNull;
+{{/useBeanValidation}}
+{{#performBeanValidation}}
+import org.hibernate.validator.constraints.*;
+{{/performBeanValidation}}
+{{#jackson}}
+{{#withXml}}
+import {{jacksonPackage}}.dataformat.xml.annotation.JacksonXmlRootElement;
+import {{jacksonPackage}}.dataformat.xml.annotation.JacksonXmlProperty;
+import {{jacksonPackage}}.dataformat.xml.annotation.JacksonXmlElementWrapper;
+{{/withXml}}
+{{/jackson}}
+{{#swagger2AnnotationLibrary}}
+import io.swagger.v3.oas.annotations.media.Schema;
+{{/swagger2AnnotationLibrary}}
+
+{{#withXml}}
+import {{javaxPackage}}.xml.bind.annotation.*;
+{{/withXml}}
+{{^parent}}
+{{#hateoas}}
+import org.springframework.hateoas.RepresentationModel;
+{{/hateoas}}
+{{/parent}}
+
+import java.util.*;
+import {{javaxPackage}}.annotation.Generated;
+
+{{#models}}
+{{#model}}
+{{#additionalPropertiesType}}
+import java.util.Map;
+import java.util.HashMap;
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+{{/additionalPropertiesType}}
+{{#isEnum}}
+{{>enumOuterClass}}
+
+{{/isEnum}}
+{{^isEnum}}
+{{#vendorExtensions.x-is-one-of-interface}}{{>oneof_interface}}{{/vendorExtensions.x-is-one-of-interface}}{{^vendorExtensions.x-is-one-of-interface}}{{>pojo}}{{/vendorExtensions.x-is-one-of-interface}}
+{{/isEnum}}
+{{/model}}
+{{/models}}
