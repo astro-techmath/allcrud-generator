@@ -1,0 +1,71 @@
+{{! allcrud-generator override of openapi-generator's embedded JavaSpring/apiController.mustache.
+    Drops the stock delegate pattern entirely: the generated class extends CrudController
+    directly, inheriting every REST mapping from the Allcrud base class, so this file only
+    needs to implement the getService()/getConverter() hooks.
+
+    allcrudEntityName / allcrudPojoClassName / allcrudIdType are resolved by
+    AllcrudSpringCodegen#postProcessOperationsWithModels (a custom CodegenConfig, not the
+    stock "spring" one) by inspecting the actual OpenAPI model - not hardcoded here anymore.
+    allcrudEntityName (entity) is still assumed to be hand-written by the consuming project
+    - this generator does not produce entities. The entity package path
+    (org.openapitools.entity) is a placeholder, provisional until configurable package
+    mapping is implemented - do not read it as an intentional final convention.
+    The generated "Service" and "Converter" classes (see service.mustache,
+    converter.mustache) are siblings in this same package, so no import is needed for
+    either of them.
+    Generated class name is prefixed with allcrudEntityName ("Product"), not the stock
+    per-tag classname variable ("ProductsApi" - derived from the OpenAPI tag, plural, with
+    an "Api" suffix SpringCodegen adds by convention) - that mismatch was a naming bug
+    fixed after the fact, not an intentional customization. }}
+package {{package}};
+
+import com.techmath.allcrud.controller.CrudController;
+import com.techmath.allcrud.converter.Converter;
+import com.techmath.allcrud.service.CrudService;
+import org.openapitools.model.{{allcrudPojoClassName}};
+import org.openapitools.entity.{{allcrudEntityName}};
+
+{{#useResponseEntity}}
+import org.springframework.stereotype.Controller;
+{{/useResponseEntity}}
+{{^useResponseEntity}}
+import org.springframework.web.bind.annotation.RestController;
+{{/useResponseEntity}}
+import org.springframework.web.bind.annotation.RequestMapping;
+import {{javaxPackage}}.annotation.Generated;
+
+{{>generatedAnnotation}}
+{{#useResponseEntity}}
+@Controller
+{{/useResponseEntity}}
+{{^useResponseEntity}}
+@RestController
+{{/useResponseEntity}}
+{{#useRequestMappingOnController}}
+{{=<% %>=}}
+@RequestMapping("${openapi.<%title%>.base-path:<%>defaultBasePath%>}")
+<%={{ }}=%>
+{{/useRequestMappingOnController}}
+{{#operations}}
+public class {{allcrudEntityName}}Controller extends CrudController<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> {
+
+    private final {{allcrudEntityName}}Service service;
+    private final {{allcrudEntityName}}Converter converter;
+
+    public {{allcrudEntityName}}Controller({{allcrudEntityName}}Service service, {{allcrudEntityName}}Converter converter) {
+        this.service = service;
+        this.converter = converter;
+    }
+
+    @Override
+    protected CrudService<{{allcrudEntityName}}, {{allcrudIdType}}> getService() {
+        return service;
+    }
+
+    @Override
+    protected Converter<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> getConverter() {
+        return converter;
+    }
+
+}
+{{/operations}}

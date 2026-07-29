@@ -1,9 +1,6 @@
 package com.techmath.allcrud.generator;
 
 import org.junit.jupiter.api.Test;
-import org.openapitools.codegen.ClientOptInput;
-import org.openapitools.codegen.DefaultGenerator;
-import org.openapitools.codegen.config.CodegenConfigurator;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -44,7 +41,7 @@ class GeneratedProductVoCompatTest {
 
     @Test
     void generatedProductVoImplementsAbstractEntityVoOfLong() throws Exception {
-        generateProductVo();
+        ProductExampleGeneration.generate(GENERATED_SOURCE_DIR);
 
         File generatedFile = new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/ProductVO.java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());
@@ -65,22 +62,6 @@ class GeneratedProductVoCompatTest {
 
         Type idType = ((ParameterizedType) matchingInterface).getActualTypeArguments()[0];
         assertEquals("java.lang.Long", idType.getTypeName(), "AbstractEntityVO type argument should be Long");
-    }
-
-    private void generateProductVo() {
-        CodegenConfigurator configurator = new CodegenConfigurator()
-                .setGeneratorName("spring")
-                .setInputSpec("src/main/resources/specs/product-example.yaml")
-                .setTemplateDir("src/main/resources/templates")
-                .setModelNameSuffix("VO")
-                .setOutputDir(GENERATED_SOURCE_DIR)
-                // We don't use the JsonNullable-based absent-vs-null distinction, and
-                // org.openapitools:jackson-databind-nullable isn't a dependency here -
-                // disabling this avoids an unresolved import in the generated VO.
-                .addAdditionalProperty("openApiNullable", false);
-
-        ClientOptInput clientOptInput = configurator.toClientOptInput();
-        new DefaultGenerator().opts(clientOptInput).generate();
     }
 
     private Class<?> compileAndLoad(File sourceFile) throws Exception {

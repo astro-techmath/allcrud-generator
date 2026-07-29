@@ -35,10 +35,15 @@
 {{#vendorExtensions.x-class-extra-annotation}}
 {{{vendorExtensions.x-class-extra-annotation}}}
 {{/vendorExtensions.x-class-extra-annotation}}
-{{! allcrud-generator override: hardcoded "implements AbstractEntityVO<Long>" instead of
-    the original vendorExtensions.x-implements loop - see model.mustache for the import.
-    Hardcoded on purpose (no flag/vendor-extension yet), matching the validated spike. }}
-public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}} implements AbstractEntityVO<Long> {{>permits}}{
+{{! allcrud-generator override: implements AbstractEntityVO<Long>/AbstractEntityDTO<Long>
+    (switch: allcrudUseDto, see model.mustache) instead of the original
+    vendorExtensions.x-implements loop - see model.mustache for the matching import.
+    The ID type ("Long") is still a hardcoded literal here, not yet driven by a
+    resolved variable like allcrudIdType is in the other templates - pojo.mustache
+    renders in a per-model context (CodegenModel) that never sees the per-operation
+    OperationsMap context those variables are resolved into (AllcrudSpringCodegen#
+    postProcessOperationsWithModels), so this wasn't in scope for that fix either. }}
+public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}} implements {{#allcrudUseDto}}AbstractEntityDTO{{/allcrudUseDto}}{{^allcrudUseDto}}AbstractEntityVO{{/allcrudUseDto}}<Long> {{>permits}}{
 {{#serializableModel}}
 
   private static final long serialVersionUID = 1L;

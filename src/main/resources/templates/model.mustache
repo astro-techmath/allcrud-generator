@@ -1,14 +1,24 @@
 {{! allcrud-generator override of openapi-generator's embedded JavaSpring/model.mustache
     (org.openapitools:openapi-generator, version pinned in build.gradle.kts).
-    Only change vs. the original: import AbstractEntityVO so generated VOs can
-    implement it (see pojo.mustache for the "implements" clause itself).
+    Only change vs. the original: import AbstractEntityVO/AbstractEntityDTO so generated
+    POJOs can implement it (see pojo.mustache for the "implements" clause itself).
+    allcrudUseDto is derived by AllcrudSpringCodegen#processOpts from the
+    allcrudPojoNamingStyle additional property ("VO", default, or "DTO") - both
+    interfaces are functionally identical (AbstractEntityDTO extends AbstractEntityVO,
+    empty marker interface, confirmed in the core), this only changes which one gets
+    imported/implemented and the generated class name suffix.
     Files not present in this templates/ dir fall back automatically to the
     embedded template of the same name - see GeneratorTemplateContentLocator. }}
 package {{package}};
 
 import java.net.URI;
 import java.util.Objects;
+{{#allcrudUseDto}}
+import com.techmath.allcrud.entity.AbstractEntityDTO;
+{{/allcrudUseDto}}
+{{^allcrudUseDto}}
 import com.techmath.allcrud.entity.AbstractEntityVO;
+{{/allcrudUseDto}}
 {{#imports}}import {{import}};
 {{/imports}}
 {{#openApiNullable}}
