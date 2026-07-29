@@ -8,6 +8,7 @@ import org.openapitools.codegen.CodegenOperation;
 import org.openapitools.codegen.CodegenProperty;
 import org.openapitools.codegen.languages.SpringCodegen;
 import org.openapitools.codegen.model.ModelMap;
+import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
 
@@ -82,6 +83,40 @@ public class AllcrudSpringCodegen extends SpringCodegen {
 
         setModelNameSuffix(useDto ? DTO_STYLE : VO_STYLE);
         additionalProperties().put(ALLCRUD_USE_DTO, useDto);
+    }
+
+    /**
+     * pojo.mustache hardcodes the ID type as the literal "Long" in its
+     * "implements AbstractEntityVO&lt;Long&gt;"/"AbstractEntityDTO&lt;Long&gt;" clause - a
+     * known limitation noted when that template was written (pojo.mustache renders in a
+     * per-model CodegenModel context, which never sees allcrudIdType, resolved only in
+     * postProcessOperationsWithModels's OperationsMap context). It went unnoticed because
+     * every resource tested so far happened to use Long. Adding a second resource with a
+     * different ID type (Order, Integer) surfaced it for real: OrderVO compiled with
+     * "implements AbstractEntityVO&lt;Long&gt;" while its getId() correctly returned
+     * Integer - a hard compile error, not a leak between resources in this class.
+     *
+     * This resolves the ID type per model directly (each model already has its own "id"
+     * property in allVars, no cross-referencing against operations needed, unlike
+     * postProcessOperationsWithModels above) and stashes it in the model's own
+     * vendorExtensions map - CodegenModel isn't a Map like OperationsMap, so it can't take
+     * an arbitrary top-level put(); vendorExtensions is the established extension point
+     * for this (pojo.mustache already reads vendorExtensions.x-class-extra-annotation the
+     * same dotted way).
+     */
+    @Override
+    public ModelsMap postProcessModels(ModelsMap objs) {
+        objs = super.postProcessModels(objs);
+
+        for (ModelMap modelMap : objs.getModels()) {
+            CodegenModel model = modelMap.getModel();
+            CodegenProperty idProperty = findIdProperty(model);
+            if (idProperty != null) {
+                model.vendorExtensions.put(ALLCRUD_ID_TYPE, idProperty.dataType);
+            }
+        }
+
+        return objs;
     }
 
     /**

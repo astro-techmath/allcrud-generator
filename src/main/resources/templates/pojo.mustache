@@ -35,15 +35,19 @@
 {{#vendorExtensions.x-class-extra-annotation}}
 {{{vendorExtensions.x-class-extra-annotation}}}
 {{/vendorExtensions.x-class-extra-annotation}}
-{{! allcrud-generator override: implements AbstractEntityVO<Long>/AbstractEntityDTO<Long>
+{{! allcrud-generator override: implements AbstractEntityVO<ID>/AbstractEntityDTO<ID>
     (switch: allcrudUseDto, see model.mustache) instead of the original
     vendorExtensions.x-implements loop - see model.mustache for the matching import.
-    The ID type ("Long") is still a hardcoded literal here, not yet driven by a
-    resolved variable like allcrudIdType is in the other templates - pojo.mustache
-    renders in a per-model context (CodegenModel) that never sees the per-operation
-    OperationsMap context those variables are resolved into (AllcrudSpringCodegen#
-    postProcessOperationsWithModels), so this wasn't in scope for that fix either. }}
-public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}} implements {{#allcrudUseDto}}AbstractEntityDTO{{/allcrudUseDto}}{{^allcrudUseDto}}AbstractEntityVO{{/allcrudUseDto}}<Long> {{>permits}}{
+    The ID type comes from vendorExtensions.allcrudIdType, resolved per-model by
+    AllcrudSpringCodegen#postProcessModels (this model's own "id" property, found
+    directly - no cross-referencing against operations needed here, unlike
+    allcrudEntityName/allcrudPojoClassName/allcrudIdType at the operations level).
+    CodegenModel isn't a Map like OperationsMap, so vendorExtensions (dotted-path,
+    same idiom as vendorExtensions.x-class-extra-annotation above) is how a model-level
+    custom value gets exposed to this template. Models without an "id" property (e.g.
+    the paginated *Page wrapper schemas) won't have this set - a pre-existing, accepted
+    limitation from when this hardcode was first introduced, not new. }}
+public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}} implements {{#allcrudUseDto}}AbstractEntityDTO{{/allcrudUseDto}}{{^allcrudUseDto}}AbstractEntityVO{{/allcrudUseDto}}<{{vendorExtensions.allcrudIdType}}> {{>permits}}{
 {{#serializableModel}}
 
   private static final long serialVersionUID = 1L;
