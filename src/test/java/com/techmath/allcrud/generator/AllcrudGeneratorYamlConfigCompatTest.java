@@ -26,6 +26,7 @@ class AllcrudGeneratorYamlConfigCompatTest {
     @Test
     void resourceGenerateListReplacesDefaultEntirely() throws IOException {
         Path sourceRoot = Files.createTempDirectory("allcrud-yaml-config-generate-list");
+        EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(FIXTURE_YML);
         AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
@@ -58,6 +59,7 @@ class AllcrudGeneratorYamlConfigCompatTest {
         String orderSentinel = "// CUSTOM - Order has no override, inherits defaults.pojo.onRegenerate: preserve\npackage org.openapitools.model;\n";
         Files.writeString(productVo, productSentinel);
         Files.writeString(orderVo, orderSentinel);
+        EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(FIXTURE_YML);
         AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));

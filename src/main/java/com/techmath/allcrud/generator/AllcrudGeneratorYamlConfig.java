@@ -44,31 +44,41 @@ import java.util.Set;
 //     Product:
 //       pojo:
 //         onRegenerate: overwrite
+//   routing:
+//     basePathPrefix: /v1   # optional, default "" (no opinion, e.g. no forced "/api")
+//
+// resources.<name>.basePath (a sibling of generate/pojo, not shown above) is a FINAL absolute
+// @RequestMapping path for that resource - see ResourceOverride.
 public final class AllcrudGeneratorYamlConfig {
 
-    private static final Set<String> ROOT_ALLOWED_KEYS = Set.of("pojoNamingStyle", "packages", "defaults", "resources");
+    private static final Set<String> ROOT_ALLOWED_KEYS =
+            Set.of("pojoNamingStyle", "packages", "defaults", "resources", "routing");
     private static final Set<String> DEFAULTS_ALLOWED_KEYS = Set.of("generate", "pojo");
-    private static final Set<String> RESOURCE_ALLOWED_KEYS = Set.of("generate", "pojo");
+    private static final Set<String> RESOURCE_ALLOWED_KEYS = Set.of("generate", "pojo", "basePath");
     private static final Set<String> POJO_NODE_ALLOWED_KEYS = Set.of("onRegenerate");
+    private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
 
     private final PojoNamingStyle pojoNamingStyle;
     private final Map<GeneratedLayer, String> packages;
     private final Set<GeneratedLayer> defaultLayersToGenerate;
     private final OnRegenerate defaultPojoOnRegenerate;
     private final Map<String, ResourceOverride> resourceOverrides;
+    private final String basePathPrefix;
 
     private AllcrudGeneratorYamlConfig(
             PojoNamingStyle pojoNamingStyle,
             Map<GeneratedLayer, String> packages,
             Set<GeneratedLayer> defaultLayersToGenerate,
             OnRegenerate defaultPojoOnRegenerate,
-            Map<String, ResourceOverride> resourceOverrides
+            Map<String, ResourceOverride> resourceOverrides,
+            String basePathPrefix
     ) {
         this.pojoNamingStyle = pojoNamingStyle;
         this.packages = packages;
         this.defaultLayersToGenerate = defaultLayersToGenerate;
         this.defaultPojoOnRegenerate = defaultPojoOnRegenerate;
         this.resourceOverrides = resourceOverrides;
+        this.basePathPrefix = basePathPrefix;
     }
 
     public static AllcrudGeneratorYamlConfig load(Path ymlPath) {
@@ -87,7 +97,7 @@ public final class AllcrudGeneratorYamlConfig {
     public GenerationRequest toGenerationRequest(Path specPath, Path sourceRoot) {
         return new GenerationRequest(
                 specPath, sourceRoot, pojoNamingStyle, defaultLayersToGenerate, packages,
-                defaultPojoOnRegenerate, resourceOverrides);
+                defaultPojoOnRegenerate, resourceOverrides, basePathPrefix);
     }
 
     private static AllcrudGeneratorYamlConfig parse(Map<String, Object> root, Path ymlPath) {
@@ -123,14 +133,32 @@ public final class AllcrudGeneratorYamlConfig {
                 OnRegenerate pojoOnRegenerate = resourceNode.containsKey("pojo")
                         ? parsePojoOnRegenerate(resourceNode.get("pojo"), location + ".pojo", ymlPath)
                         : null;
+                String basePath = resourceNode.containsKey("basePath")
+                        ? requireString(resourceNode.get("basePath"), location + ".basePath", ymlPath)
+                        : null;
 
-                resourceOverrides.put(resourceName, new ResourceOverride(generate, pojoOnRegenerate));
+                resourceOverrides.put(resourceName, new ResourceOverride(generate, pojoOnRegenerate, basePath));
             }
         }
 
+        String basePathPrefix = parseRoutingBasePathPrefix(root, ymlPath);
+
         return new AllcrudGeneratorYamlConfig(
                 pojoNamingStyle, packages, defaultLayersToGenerate, defaultPojoOnRegenerate,
-                Map.copyOf(resourceOverrides));
+                Map.copyOf(resourceOverrides), basePathPrefix);
+    }
+
+    // Absent "routing" section entirely -> "" (no opinion, e.g. no forced "/api" prefix) -
+    // most callers shouldn't have to think about this section at all.
+    private static String parseRoutingBasePathPrefix(Map<String, Object> root, Path ymlPath) {
+        Object routingNode = root.get("routing");
+        if (routingNode == null) {
+            return "";
+        }
+        Map<String, Object> routing = requireMap(routingNode, "routing", ymlPath);
+        requireOnlyKeys(routing, ROUTING_ALLOWED_KEYS, "routing", ymlPath);
+        Object raw = routing.get("basePathPrefix");
+        return raw == null ? "" : requireString(raw, "routing.basePathPrefix", ymlPath);
     }
 
     private static PojoNamingStyle parsePojoNamingStyle(Map<String, Object> root, Path ymlPath) {

@@ -27,6 +27,7 @@ class OverwritePolicyCompatTest {
         Files.createDirectories(targetFile.getParent());
         String sentinel = "// CUSTOM HAND-WRITTEN MARKER - must survive PRESERVE\npackage org.openapitools.model;\n";
         Files.writeString(targetFile, sentinel);
+        EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, sourceRoot, PojoNamingStyle.VO,
@@ -34,7 +35,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of()));
+                OnRegenerate.PRESERVE, Map.of(), ""));
 
         assertEquals(sentinel, Files.readString(targetFile), "PRESERVE must not touch an existing POJO file");
     }
@@ -46,6 +47,7 @@ class OverwritePolicyCompatTest {
         Files.createDirectories(targetFile.getParent());
         String sentinel = "// STALE CONTENT - must be replaced by OVERWRITE\npackage org.openapitools.model;\n";
         Files.writeString(targetFile, sentinel);
+        EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, sourceRoot, PojoNamingStyle.VO,
@@ -53,7 +55,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.OVERWRITE, Map.of()));
+                OnRegenerate.OVERWRITE, Map.of(), ""));
 
         String actual = Files.readString(targetFile);
         assertNotEquals(sentinel, actual, "OVERWRITE must regenerate an existing POJO file");
@@ -67,6 +69,7 @@ class OverwritePolicyCompatTest {
         Files.createDirectories(targetFile.getParent());
         String sentinel = "// HAND-WRITTEN CONTROLLER LOGIC - must survive, no config knob for this layer\npackage org.openapitools.api;\n";
         Files.writeString(targetFile, sentinel);
+        EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         // OnRegenerate.OVERWRITE only governs POJO - Controller has no knob and must never be
         // touched, regardless of this value.
@@ -76,7 +79,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.OVERWRITE, Map.of()));
+                OnRegenerate.OVERWRITE, Map.of(), ""));
 
         assertEquals(sentinel, Files.readString(targetFile),
                 "Controller must never be overwritten, regardless of pojoOnRegenerate");

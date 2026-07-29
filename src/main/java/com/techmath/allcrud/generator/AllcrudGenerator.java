@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -73,7 +75,25 @@ public final class AllcrudGenerator {
                     // org.openapitools:jackson-databind-nullable isn't a dependency here -
                     // disabling this avoids an unresolved import in the generated VO/DTO.
                     .addAdditionalProperty("openApiNullable", false)
-                    .addAdditionalProperty("allcrudPojoNamingStyle", request.pojoNamingStyle().name());
+                    .addAdditionalProperty("allcrudPojoNamingStyle", request.pojoNamingStyle().name())
+                    // Baked into the generated @RequestMapping literal by AllcrudSpringCodegen
+                    // (see ALLCRUD_BASE_PATH_PREFIX/ALLCRUD_BASE_PATH_OVERRIDES there) - has to
+                    // happen at codegen time, not in relocate() below, since it's part of the
+                    // Java source text itself, not a file-placement decision.
+                    .addAdditionalProperty("allcrudBasePathPrefix", request.basePathPrefix())
+                    .addAdditionalProperty("allcrudBasePathOverrides", basePathOverrides(request))
+                    // Cross-layer imports (Controller importing the Entity/POJO/Service/
+                    // Converter it depends on, Service importing Repository, etc.) used to
+                    // either hardcode "org.openapitools.*" or assume "same package, no import
+                    // needed" - both wrong once packages.<layer> in allcrud-generator.yml can
+                    // put each layer in a different package. These 4 are global for the whole
+                    // run (packages is not per-resource); allcrudEntityPackage is resolved
+                    // per-resource inside AllcrudSpringCodegen instead (see there for why).
+                    .addAdditionalProperty("allcrudSourceRoot", request.sourceRoot().toString())
+                    .addAdditionalProperty("allcrudPojoPackage", request.packages().get(GeneratedLayer.POJO))
+                    .addAdditionalProperty("allcrudRepositoryPackage", request.packages().get(GeneratedLayer.REPOSITORY))
+                    .addAdditionalProperty("allcrudConverterPackage", request.packages().get(GeneratedLayer.CONVERTER))
+                    .addAdditionalProperty("allcrudServicePackage", request.packages().get(GeneratedLayer.SERVICE));
 
             ClientOptInput clientOptInput = configurator.toClientOptInput();
 
@@ -112,6 +132,17 @@ public final class AllcrudGenerator {
         } finally {
             deleteRecursively(stagingDir);
         }
+    }
+
+    private static Map<String, String> basePathOverrides(GenerationRequest request) {
+        Map<String, String> overrides = new LinkedHashMap<>();
+        for (Map.Entry<String, ResourceOverride> entry : request.resourceOverrides().entrySet()) {
+            String basePath = entry.getValue().basePath();
+            if (basePath != null) {
+                overrides.put(entry.getKey(), basePath);
+            }
+        }
+        return overrides;
     }
 
     // Classifies each staged file by its filename suffix (Controller/Service/Repository/

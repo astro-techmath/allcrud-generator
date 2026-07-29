@@ -3,16 +3,17 @@
     "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver code
     (see AllcrudGenerator), with output suffix "Repository.java".
 
-    allcrudEntityName / allcrudIdType are resolved by AllcrudSpringCodegen (a custom
-    CodegenConfig, not the stock "spring" one) by inspecting the actual OpenAPI model - see
-    that class for the resolution logic.
+    allcrudEntityName / allcrudIdType / allcrudEntityPackage are resolved by
+    AllcrudSpringCodegen (a custom CodegenConfig, not the stock "spring" one) by inspecting
+    the actual OpenAPI model and, for the entity package, scanning the source tree - see that
+    class for the resolution logic.
     Generated class name is prefixed with allcrudEntityName ("Product"), not the stock
     per-tag classname variable ("ProductsApi", plural, "Api"-suffixed) - that mismatch was
     a naming bug fixed after the fact, not an intentional customization. }}
 package {{package}};
 
 import com.techmath.allcrud.repository.EntityRepository;
-import org.openapitools.entity.{{allcrudEntityName}};
+import {{allcrudEntityPackage}}.{{allcrudEntityName}};
 import {{javaxPackage}}.annotation.Generated;
 
 {{>generatedAnnotation}}

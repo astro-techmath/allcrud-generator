@@ -14,7 +14,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -137,6 +136,8 @@ class MultiResourceCompatTest {
     }
 
     private Map<String, Class<?>> generateCompileAndLoad() throws Exception {
+        EntityFixtures.copyInto(Path.of(GENERATED_SOURCE_DIR), "Product", "Order");
+
         // Single generate() call for both resources - the whole point of this test.
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
@@ -147,7 +148,7 @@ class MultiResourceCompatTest {
                         GeneratedLayer.SERVICE, "org.openapitools.api",
                         GeneratedLayer.REPOSITORY, "org.openapitools.api",
                         GeneratedLayer.CONVERTER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of()));
+                OnRegenerate.PRESERVE, Map.of(), ""));
 
         List<String> generatedSimpleNames = List.of(
                 "ProductController", "ProductService", "ProductRepository", "ProductConverter",
@@ -164,8 +165,8 @@ class MultiResourceCompatTest {
             assertTrue(generated.exists(), "Expected generated file at " + generated.getAbsolutePath());
         }
 
-        sourceFiles.add(fixtureFile("fixtures/Product.java"));
-        sourceFiles.add(fixtureFile("fixtures/Order.java"));
+        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "org/openapitools/entity/Product.java"));
+        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "org/openapitools/entity/Order.java"));
 
         List<String> classNamesToLoad = generatedSimpleNames.stream()
                 .map(simpleName -> "org.openapitools.api." + simpleName)
@@ -178,12 +179,6 @@ class MultiResourceCompatTest {
             bySimpleName.put(loadedClass.getSimpleName(), loadedClass);
         }
         return bySimpleName;
-    }
-
-    private File fixtureFile(String classpathResource) throws URISyntaxException {
-        URL resource = getClass().getClassLoader().getResource(classpathResource);
-        assertTrue(resource != null, "Expected fixture on test classpath: " + classpathResource);
-        return new File(resource.toURI());
     }
 
     private List<Class<?>> compileAndLoad(List<File> sourceFiles, String... classNamesToLoad) throws Exception {

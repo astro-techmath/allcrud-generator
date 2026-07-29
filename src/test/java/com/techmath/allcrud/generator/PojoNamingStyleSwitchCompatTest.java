@@ -54,12 +54,13 @@ class PojoNamingStyleSwitchCompatTest {
 
     private void assertPojoNamingStyle(PojoNamingStyle namingStyle, String expectedClassSimpleName, String expectedInterface) throws Exception {
         String outputDir = "build/generated/test-pojo-naming-style-" + namingStyle.name().toLowerCase(Locale.ROOT);
+        EntityFixtures.copyInto(Path.of(outputDir), "Product", "Order");
         AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), namingStyle,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of()));
+                OnRegenerate.PRESERVE, Map.of(), ""));
 
         File generatedFile = new File(outputDir, "org/openapitools/model/" + expectedClassSimpleName + ".java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());

@@ -28,6 +28,15 @@ import java.util.Set;
 //
 // resourceOverrides: keyed by resource name (e.g. "Product", matching allcrudEntityName) -
 // see ResourceOverride. A resource absent from this map uses the defaults entirely.
+//
+// basePathPrefix: allcrud-generator.yml's "routing.basePathPrefix" - global default, "" (no
+// opinion, e.g. no forced "/api") if the caller doesn't set one. Each resource's
+// @RequestMapping path is "{basePathPrefix}/{entityName, lowercased}" unless
+// ResourceOverride#basePath gives it a final absolute path instead (see AllcrudSpringCodegen#
+// resolveBasePath) - replaces the old Spring "${openapi.<title>.base-path:<default>}" property
+// placeholder, which silently resolved to an empty path (mapping the whole controller to the
+// app root) whenever nobody configured that property, with no compile-time signal anything
+// was wrong.
 public record GenerationRequest(
         Path specPath,
         Path sourceRoot,
@@ -35,7 +44,8 @@ public record GenerationRequest(
         Set<GeneratedLayer> defaultLayersToGenerate,
         Map<GeneratedLayer, String> packages,
         OnRegenerate defaultPojoOnRegenerate,
-        Map<String, ResourceOverride> resourceOverrides
+        Map<String, ResourceOverride> resourceOverrides,
+        String basePathPrefix
 ) {
     public GenerationRequest {
         Objects.requireNonNull(specPath, "specPath");
@@ -45,6 +55,7 @@ public record GenerationRequest(
         Objects.requireNonNull(packages, "packages");
         Objects.requireNonNull(defaultPojoOnRegenerate, "defaultPojoOnRegenerate");
         Objects.requireNonNull(resourceOverrides, "resourceOverrides");
+        Objects.requireNonNull(basePathPrefix, "basePathPrefix");
         defaultLayersToGenerate = Set.copyOf(defaultLayersToGenerate);
         packages = Map.copyOf(packages);
         resourceOverrides = Map.copyOf(resourceOverrides);

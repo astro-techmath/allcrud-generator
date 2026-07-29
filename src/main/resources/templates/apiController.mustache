@@ -3,16 +3,28 @@
     directly, inheriting every REST mapping from the Allcrud base class, so this file only
     needs to implement the getService()/getConverter() hooks.
 
-    allcrudEntityName / allcrudPojoClassName / allcrudIdType are resolved by
+    allcrudEntityName / allcrudPojoClassName / allcrudIdType / allcrudBasePath are resolved by
     AllcrudSpringCodegen#postProcessOperationsWithModels (a custom CodegenConfig, not the
     stock "spring" one) by inspecting the actual OpenAPI model - not hardcoded here anymore.
-    allcrudEntityName (entity) is still assumed to be hand-written by the consuming project
-    - this generator does not produce entities. The entity package path
-    (org.openapitools.entity) is a placeholder, provisional until configurable package
-    mapping is implemented - do not read it as an intentional final convention.
-    The generated "Service" and "Converter" classes (see service.mustache,
-    converter.mustache) are siblings in this same package, so no import is needed for
-    either of them.
+
+    @RequestMapping is a plain string literal (allcrudBasePath), not the stock
+    "${openapi.<title>.base-path:<default>}" Spring property placeholder - that indirection
+    resolved to an EMPTY path whenever nobody set the property in application.properties (the
+    common case), silently mapping the whole controller to the app root at runtime, with no
+    compile-time signal anything was wrong. Controller is "generate once, never overwrite" -
+    if the path needs to change later, the dev edits the literal directly, no property-file
+    indirection needed for that.
+    allcrudEntityName (entity) is still assumed to be hand-written by the consuming project -
+    this generator does not produce entities. Its package (allcrudEntityPackage) is resolved
+    by scanning the source tree for a file named "<allcrudEntityName>.java" and reading its
+    package declaration - there's no "packages.entity" yml key (rejected: doesn't support
+    entities living in different packages per module/domain).
+    Service and Converter are NOT necessarily in this same package anymore - each of the 5
+    layers has its own independent target package in allcrud-generator.yml's "packages"
+    section, so they're imported explicitly via allcrudServicePackage/allcrudConverterPackage,
+    same as the entity/POJO. This used to assume "same package, no import needed", which broke
+    the instant a real yml put controller/service in different packages - never caught before
+    because every test happened to use the same package for all 4 non-POJO layers.
     Generated class name is prefixed with allcrudEntityName ("Product"), not the stock
     per-tag classname variable ("ProductsApi" - derived from the OpenAPI tag, plural, with
     an "Api" suffix SpringCodegen adds by convention) - that mismatch was a naming bug
@@ -22,8 +34,10 @@ package {{package}};
 import com.techmath.allcrud.controller.CrudController;
 import com.techmath.allcrud.converter.Converter;
 import com.techmath.allcrud.service.CrudService;
-import org.openapitools.model.{{allcrudPojoClassName}};
-import org.openapitools.entity.{{allcrudEntityName}};
+import {{allcrudPojoPackage}}.{{allcrudPojoClassName}};
+import {{allcrudEntityPackage}}.{{allcrudEntityName}};
+import {{allcrudServicePackage}}.{{allcrudEntityName}}Service;
+import {{allcrudConverterPackage}}.{{allcrudEntityName}}Converter;
 
 {{#useResponseEntity}}
 import org.springframework.stereotype.Controller;
@@ -42,9 +56,7 @@ import {{javaxPackage}}.annotation.Generated;
 @RestController
 {{/useResponseEntity}}
 {{#useRequestMappingOnController}}
-{{=<% %>=}}
-@RequestMapping("${openapi.<%title%>.base-path:<%>defaultBasePath%>}")
-<%={{ }}=%>
+@RequestMapping("{{allcrudBasePath}}")
 {{/useRequestMappingOnController}}
 {{#operations}}
 public class {{allcrudEntityName}}Controller extends CrudController<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> {

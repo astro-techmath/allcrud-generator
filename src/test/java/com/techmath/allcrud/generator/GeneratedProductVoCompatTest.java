@@ -44,13 +44,14 @@ class GeneratedProductVoCompatTest {
 
     @Test
     void generatedProductVoImplementsAbstractEntityVoOfLong() throws Exception {
+        EntityFixtures.copyInto(Path.of(GENERATED_SOURCE_DIR), "Product", "Order");
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of()));
+                OnRegenerate.PRESERVE, Map.of(), ""));
 
         File generatedFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());

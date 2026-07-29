@@ -14,7 +14,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -65,6 +64,30 @@ class GeneratedControllerAndServiceCompatTest {
 
         assertGenericSuperclass(controller, "com.techmath.allcrud.controller.CrudController",
                 "org.openapitools.entity.Product", "org.openapitools.model.ProductVO", "java.lang.Long");
+    }
+
+    // Proves @RequestMapping is a plain literal ("/product"), not the old Spring property
+    // placeholder ("${openapi.product.base-path:}") that silently resolved to an empty path
+    // at runtime whenever nobody configured that property - the bug that motivated removing
+    // it entirely. Reflection avoids needing spring-web's RequestMapping class on this
+    // module's own test compile classpath (allcrud core declares it "runtime" scope only,
+    // same reasoning as elsewhere in this test suite for entity/converter type names).
+    @Test
+    void generatedControllerRequestMappingIsALiteralPath() throws Exception {
+        List<Class<?>> classes = generateCompileAndLoad();
+        Class<?> controller = classes.stream()
+                .filter(c -> c.getSimpleName().endsWith("Controller"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Generated controller class not found"));
+
+        Class<? extends java.lang.annotation.Annotation> requestMappingClass =
+                Class.forName("org.springframework.web.bind.annotation.RequestMapping")
+                        .asSubclass(java.lang.annotation.Annotation.class);
+        Object annotation = controller.getAnnotation(requestMappingClass);
+        assertTrue(annotation != null, "Expected @RequestMapping on " + controller.getName());
+
+        String[] paths = (String[]) requestMappingClass.getMethod("value").invoke(annotation);
+        assertEquals(List.of("/product"), List.of(paths));
     }
 
     @Test
@@ -156,6 +179,8 @@ class GeneratedControllerAndServiceCompatTest {
     }
 
     private List<Class<?>> generateCompileAndLoad() throws Exception {
+        EntityFixtures.copyInto(Path.of(GENERATED_SOURCE_DIR), "Product", "Order");
+
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.values()),
@@ -165,7 +190,7 @@ class GeneratedControllerAndServiceCompatTest {
                         GeneratedLayer.SERVICE, "org.openapitools.api",
                         GeneratedLayer.REPOSITORY, "org.openapitools.api",
                         GeneratedLayer.CONVERTER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of()));
+                OnRegenerate.PRESERVE, Map.of(), ""));
 
         File modelFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java");
         File controllerFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/api/ProductController.java");
@@ -177,7 +202,7 @@ class GeneratedControllerAndServiceCompatTest {
             assertTrue(generated.exists(), "Expected generated file at " + generated.getAbsolutePath());
         }
 
-        File productFixture = fixtureFile("fixtures/Product.java");
+        File productFixture = new File(GENERATED_SOURCE_DIR, "org/openapitools/entity/Product.java");
 
         List<File> sourceFiles = List.of(
                 modelFile, controllerFile, serviceFile, repositoryFile, converterFile,
@@ -189,12 +214,6 @@ class GeneratedControllerAndServiceCompatTest {
                 "org.openapitools.api.ProductService",
                 "org.openapitools.api.ProductRepository",
                 "org.openapitools.api.ProductConverter");
-    }
-
-    private File fixtureFile(String classpathResource) throws URISyntaxException {
-        URL resource = getClass().getClassLoader().getResource(classpathResource);
-        assertTrue(resource != null, "Expected fixture on test classpath: " + classpathResource);
-        return new File(resource.toURI());
     }
 
     private List<Class<?>> compileAndLoad(List<File> sourceFiles, String... classNamesToLoad) throws Exception {

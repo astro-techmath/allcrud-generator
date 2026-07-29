@@ -12,9 +12,16 @@ import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Custom CodegenConfig for the "spring" generator, used instead of the stock one so
@@ -34,6 +41,30 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     public static final String ALLCRUD_ID_TYPE = "allcrudIdType";
     public static final String ALLCRUD_POJO_NAMING_STYLE = "allcrudPojoNamingStyle";
     public static final String ALLCRUD_USE_DTO = "allcrudUseDto";
+    public static final String ALLCRUD_BASE_PATH = "allcrudBasePath";
+    // Additional properties AllcrudGenerator sets globally for the whole run (see
+    // GenerationRequest#basePathPrefix / ResourceOverride#basePath) - read here per-operation
+    // to resolve ALLCRUD_BASE_PATH. Not exposed as vendor extensions like x-allcrud-id-type:
+    // these come from allcrud-generator.yml, not the OpenAPI spec itself.
+    public static final String ALLCRUD_BASE_PATH_PREFIX = "allcrudBasePathPrefix";
+    public static final String ALLCRUD_BASE_PATH_OVERRIDES = "allcrudBasePathOverrides";
+    public static final String ALLCRUD_ENTITY_PACKAGE = "allcrudEntityPackage";
+    // AllcrudGenerator#sourceRoot, passed through so postProcessOperationsWithModels can scan
+    // it for <entityName>.java (see resolveEntityPackage) - the Entity itself is never
+    // generated, so its package can't be resolved any other way (no "packages.entity" key in
+    // allcrud-generator.yml either - rejected: doesn't support entities living in different
+    // packages per module/domain, e.g. com.acme.catalog.Product vs com.acme.sales.Order).
+    public static final String ALLCRUD_SOURCE_ROOT = "allcrudSourceRoot";
+    // Global (not per-resource) target packages for the other 4 layers - plain
+    // additionalProperties, no per-operation resolution needed here: DefaultGenerator merges
+    // config.additionalProperties() into every operation/model bundle automatically
+    // (confirmed empirically - operation.putAll(config.additionalProperties()) in
+    // DefaultGenerator#generateApis), the same mechanism that already makes {{javaxPackage}}
+    // work in these templates without any custom code in this class for it.
+    public static final String ALLCRUD_POJO_PACKAGE = "allcrudPojoPackage";
+    public static final String ALLCRUD_REPOSITORY_PACKAGE = "allcrudRepositoryPackage";
+    public static final String ALLCRUD_CONVERTER_PACKAGE = "allcrudConverterPackage";
+    public static final String ALLCRUD_SERVICE_PACKAGE = "allcrudServicePackage";
 
     private static final String X_ALLCRUD_ID_TYPE = "x-allcrud-id-type";
     private static final String DTO_STYLE = "DTO";
@@ -43,6 +74,11 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // toApiFilename's javadoc for why this reuses that data instead of resolving the
     // entity name a second time from a different source.
     private final Map<String, String> entityNameByApiName = new HashMap<>();
+    // Entity package resolution (resolveEntityPackage) requires walking the whole sourceRoot
+    // tree - cheap for the handful of resources a real project has, but cached per entity name
+    // anyway since postProcessOperationsWithModels can run more than once for the same
+    // resource's tag group across a single generate() invocation.
+    private final Map<String, String> entityPackageByEntityName = new HashMap<>();
 
     public AllcrudSpringCodegen() {
         super();
@@ -187,6 +223,8 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             objs.put(ALLCRUD_ENTITY_NAME, resourceModel.schemaName);
             objs.put(ALLCRUD_POJO_CLASS_NAME, resourceModel.classname);
             objs.put(ALLCRUD_ID_TYPE, idTypeOverride != null ? idTypeOverride : idProperty.dataType);
+            objs.put(ALLCRUD_BASE_PATH, resolveBasePath(resourceModel.schemaName));
+            objs.put(ALLCRUD_ENTITY_PACKAGE, resolveEntityPackage(resourceModel.schemaName));
             entityNameByApiName.put(operations.getClassname(), resourceModel.schemaName);
             break;
         }
@@ -240,6 +278,99 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             return modelsByClassname.get(operation.bodyParam.baseType);
         }
         return null;
+    }
+
+    // resources.<entityName>.basePath (ALLCRUD_BASE_PATH_OVERRIDES) is a FINAL absolute path,
+    // not concatenated with the prefix - that's the whole point of an override. Without one,
+    // the path is always "{basePathPrefix}/{entityName, lowercased}". basePathPrefix defaults
+    // to "" (no opinion, e.g. no forced "/api") when the caller doesn't set it at all.
+    @SuppressWarnings("unchecked")
+    private String resolveBasePath(String entityName) {
+        Object overridesValue = additionalProperties().get(ALLCRUD_BASE_PATH_OVERRIDES);
+        if (overridesValue instanceof Map<?, ?> overrides) {
+            Object override = ((Map<String, Object>) overrides).get(entityName);
+            if (override != null) {
+                return override.toString();
+            }
+        }
+        Object prefixValue = additionalProperties().get(ALLCRUD_BASE_PATH_PREFIX);
+        String prefix = prefixValue != null ? prefixValue.toString() : "";
+        return prefix + "/" + entityName.toLowerCase(Locale.ROOT);
+    }
+
+    // The Entity is never generated (out of scope, hand-written by the consumer) and has no
+    // "packages.entity" yml key (rejected - doesn't support per-module/domain entity
+    // packages), so its package can only be discovered by looking at what the consumer
+    // actually wrote: scan sourceRoot for a file literally named "<entityName>.java" and
+    // parse its "package ...;" declaration - line 1, same technique already proven safe for
+    // rewriting that line in generated files (AllcrudGenerator#rewritePackageStatement),
+    // applied here in reverse (reading instead of writing).
+    //
+    // Reflection over the compiled class was considered and rejected: this runs BEFORE
+    // compileJava (that's the entire point of the javaSourceDir/srcDir wiring - generate
+    // source first, compile everything together after), so the Entity is never compiled yet
+    // at this point in a fresh build. Only the source text is available.
+    //
+    // Fails loudly, not silently, on both failure modes: zero matches (the consumer hasn't
+    // written the entity yet) and more than one match (ambiguous - which one is "the" entity
+    // package?) - picking the first match silently in the ambiguous case would be exactly the
+    // kind of silent-wrong-behavior this project has repeatedly decided against elsewhere
+    // (GlobalSettings presence-vs-value, the old @RequestMapping property placeholder).
+    private String resolveEntityPackage(String entityName) {
+        String cached = entityPackageByEntityName.get(entityName);
+        if (cached != null) {
+            return cached;
+        }
+
+        Object sourceRootValue = additionalProperties().get(ALLCRUD_SOURCE_ROOT);
+        if (sourceRootValue == null) {
+            throw new IllegalStateException(ALLCRUD_SOURCE_ROOT + " additional property not set - "
+                    + "AllcrudGenerator must pass it so the entity's package can be resolved");
+        }
+        Path sourceRoot = Path.of(sourceRootValue.toString());
+        String targetFileName = entityName + ".java";
+
+        List<Path> matches = new ArrayList<>();
+        if (Files.isDirectory(sourceRoot)) {
+            try (Stream<Path> files = Files.walk(sourceRoot)) {
+                files.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().equals(targetFileName))
+                        .forEach(matches::add);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        if (matches.isEmpty()) {
+            throw new IllegalStateException(
+                    targetFileName + " not found under " + sourceRoot
+                            + " - create the entity before running the generator");
+        }
+        if (matches.size() > 1) {
+            throw new IllegalStateException(
+                    "Found more than one " + targetFileName + " under " + sourceRoot + ": " + matches
+                            + " - ambiguous, which one is the entity for this resource?");
+        }
+
+        String entityPackage = readPackageStatement(matches.get(0));
+        entityPackageByEntityName.put(entityName, entityPackage);
+        return entityPackage;
+    }
+
+    private String readPackageStatement(Path javaFile) {
+        String content;
+        try {
+            content = Files.readString(javaFile);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        int newlineIndex = content.indexOf('\n');
+        String firstLine = (newlineIndex == -1 ? content : content.substring(0, newlineIndex)).trim();
+        if (!firstLine.startsWith("package ") || !firstLine.endsWith(";")) {
+            throw new IllegalStateException(
+                    "Expected first line of " + javaFile + " to be a package statement, found: " + firstLine);
+        }
+        return firstLine.substring("package ".length(), firstLine.length() - 1).trim();
     }
 
     private CodegenProperty findIdProperty(CodegenModel model) {
