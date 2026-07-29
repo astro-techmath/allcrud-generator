@@ -17,6 +17,12 @@ import java.nio.file.StandardCopyOption;
 // needs its entity fixtures in place first.
 final class EntityFixtures {
 
+    // Shared by tests that construct GenerationRequest directly (not via
+    // AllcrudGeneratorYamlConfig) and don't care about the global exception handler - opts out
+    // so those tests keep testing only what they're actually about.
+    static final ExceptionHandlerConfig NO_EXCEPTION_HANDLER =
+            new ExceptionHandlerConfig(false, null, "GlobalExceptionHandler");
+
     private EntityFixtures() {
     }
 

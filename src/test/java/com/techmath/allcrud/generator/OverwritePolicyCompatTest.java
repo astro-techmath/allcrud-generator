@@ -35,7 +35,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of(), ""));
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         assertEquals(sentinel, Files.readString(targetFile), "PRESERVE must not touch an existing POJO file");
     }
@@ -55,7 +55,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.OVERWRITE, Map.of(), ""));
+                OnRegenerate.OVERWRITE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         String actual = Files.readString(targetFile);
         assertNotEquals(sentinel, actual, "OVERWRITE must regenerate an existing POJO file");
@@ -79,7 +79,7 @@ class OverwritePolicyCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.OVERWRITE, Map.of(), ""));
+                OnRegenerate.OVERWRITE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         assertEquals(sentinel, Files.readString(targetFile),
                 "Controller must never be overwritten, regardless of pojoOnRegenerate");

@@ -148,7 +148,7 @@ class MultiResourceCompatTest {
                         GeneratedLayer.SERVICE, "org.openapitools.api",
                         GeneratedLayer.REPOSITORY, "org.openapitools.api",
                         GeneratedLayer.CONVERTER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of(), ""));
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         List<String> generatedSimpleNames = List.of(
                 "ProductController", "ProductService", "ProductRepository", "ProductConverter",

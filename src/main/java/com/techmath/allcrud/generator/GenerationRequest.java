@@ -37,6 +37,10 @@ import java.util.Set;
 // placeholder, which silently resolved to an empty path (mapping the whole controller to the
 // app root) whenever nobody configured that property, with no compile-time signal anything
 // was wrong.
+//
+// exceptionHandler: allcrud-generator.yml's "exceptionHandler" block (ExceptionHandlerConfig) -
+// the one PROJECT-level (not per-resource) artifact this generator produces, see
+// AllcrudGenerator#generateGlobalExceptionHandler.
 public record GenerationRequest(
         Path specPath,
         Path sourceRoot,
@@ -45,7 +49,8 @@ public record GenerationRequest(
         Map<GeneratedLayer, String> packages,
         OnRegenerate defaultPojoOnRegenerate,
         Map<String, ResourceOverride> resourceOverrides,
-        String basePathPrefix
+        String basePathPrefix,
+        ExceptionHandlerConfig exceptionHandler
 ) {
     public GenerationRequest {
         Objects.requireNonNull(specPath, "specPath");
@@ -56,6 +61,7 @@ public record GenerationRequest(
         Objects.requireNonNull(defaultPojoOnRegenerate, "defaultPojoOnRegenerate");
         Objects.requireNonNull(resourceOverrides, "resourceOverrides");
         Objects.requireNonNull(basePathPrefix, "basePathPrefix");
+        Objects.requireNonNull(exceptionHandler, "exceptionHandler");
         defaultLayersToGenerate = Set.copyOf(defaultLayersToGenerate);
         packages = Map.copyOf(packages);
         resourceOverrides = Map.copyOf(resourceOverrides);

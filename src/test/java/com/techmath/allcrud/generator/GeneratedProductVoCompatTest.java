@@ -51,7 +51,7 @@ class GeneratedProductVoCompatTest {
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
                         GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of(), ""));
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         File generatedFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());

@@ -190,7 +190,7 @@ class GeneratedControllerAndServiceCompatTest {
                         GeneratedLayer.SERVICE, "org.openapitools.api",
                         GeneratedLayer.REPOSITORY, "org.openapitools.api",
                         GeneratedLayer.CONVERTER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of(), ""));
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         File modelFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java");
         File controllerFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/api/ProductController.java");

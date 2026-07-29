@@ -28,7 +28,7 @@ class BasePathCompatTest {
                 SPEC, sourceRoot, PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.CONTROLLER),
                 Map.of(GeneratedLayer.CONTROLLER, "org.openapitools.api"),
-                OnRegenerate.PRESERVE, Map.of(), "/v1"));
+                OnRegenerate.PRESERVE, Map.of(), "/v1", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         String content = Files.readString(sourceRoot.resolve("org/openapitools/api/ProductController.java"));
         assertTrue(content.contains("@RequestMapping(\"/v1/product\")"),
@@ -46,7 +46,7 @@ class BasePathCompatTest {
                 Map.of(GeneratedLayer.CONTROLLER, "org.openapitools.api"),
                 OnRegenerate.PRESERVE,
                 Map.of("Product", new ResourceOverride(null, null, "/custom/products", null)),
-                "/v1"));
+                "/v1", EntityFixtures.NO_EXCEPTION_HANDLER));
 
         String content = Files.readString(sourceRoot.resolve("org/openapitools/api/ProductController.java"));
         assertTrue(content.contains("@RequestMapping(\"/custom/products\")"),

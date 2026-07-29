@@ -49,19 +49,25 @@ import java.util.Set;
 //         package: com.acme.catalog.persistence   # same "package" key on any of the 5 layers
 //   routing:
 //     basePathPrefix: /v1   # optional, default "" (no opinion, e.g. no forced "/api")
+//   exceptionHandler:
+//     generate: true          # optional, default true (opt-out, unlike every other artifact)
+//     package: com.acme.web   # optional, falls back to packages.controller
+//     className: GlobalExceptionHandler   # optional, this is the default if omitted
 //
 // resources.<name>.basePath (a sibling of generate/pojo, not shown above) is a FINAL absolute
 // @RequestMapping path for that resource - see ResourceOverride.
 public final class AllcrudGeneratorYamlConfig {
 
     private static final Set<String> ROOT_ALLOWED_KEYS =
-            Set.of("pojoNamingStyle", "packages", "defaults", "resources", "routing");
+            Set.of("pojoNamingStyle", "packages", "defaults", "resources", "routing", "exceptionHandler");
     private static final Set<String> DEFAULTS_ALLOWED_KEYS = Set.of("generate", "pojo");
     private static final Set<String> RESOURCE_ALLOWED_KEYS =
             Set.of("generate", "pojo", "repository", "converter", "service", "controller", "basePath");
     private static final Set<String> POJO_NODE_ALLOWED_KEYS = Set.of("onRegenerate", "package");
     private static final Set<String> LAYER_PACKAGE_NODE_ALLOWED_KEYS = Set.of("package");
     private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
+    private static final Set<String> EXCEPTION_HANDLER_ALLOWED_KEYS = Set.of("generate", "package", "className");
+    private static final String DEFAULT_EXCEPTION_HANDLER_CLASS_NAME = "GlobalExceptionHandler";
 
     private final PojoNamingStyle pojoNamingStyle;
     private final Map<GeneratedLayer, String> packages;
@@ -69,6 +75,7 @@ public final class AllcrudGeneratorYamlConfig {
     private final OnRegenerate defaultPojoOnRegenerate;
     private final Map<String, ResourceOverride> resourceOverrides;
     private final String basePathPrefix;
+    private final ExceptionHandlerConfig exceptionHandler;
 
     private AllcrudGeneratorYamlConfig(
             PojoNamingStyle pojoNamingStyle,
@@ -76,7 +83,8 @@ public final class AllcrudGeneratorYamlConfig {
             Set<GeneratedLayer> defaultLayersToGenerate,
             OnRegenerate defaultPojoOnRegenerate,
             Map<String, ResourceOverride> resourceOverrides,
-            String basePathPrefix
+            String basePathPrefix,
+            ExceptionHandlerConfig exceptionHandler
     ) {
         this.pojoNamingStyle = pojoNamingStyle;
         this.packages = packages;
@@ -84,6 +92,7 @@ public final class AllcrudGeneratorYamlConfig {
         this.defaultPojoOnRegenerate = defaultPojoOnRegenerate;
         this.resourceOverrides = resourceOverrides;
         this.basePathPrefix = basePathPrefix;
+        this.exceptionHandler = exceptionHandler;
     }
 
     public static AllcrudGeneratorYamlConfig load(Path ymlPath) {
@@ -102,7 +111,7 @@ public final class AllcrudGeneratorYamlConfig {
     public GenerationRequest toGenerationRequest(Path specPath, Path sourceRoot) {
         return new GenerationRequest(
                 specPath, sourceRoot, pojoNamingStyle, defaultLayersToGenerate, packages,
-                defaultPojoOnRegenerate, resourceOverrides, basePathPrefix);
+                defaultPojoOnRegenerate, resourceOverrides, basePathPrefix, exceptionHandler);
     }
 
     private static AllcrudGeneratorYamlConfig parse(Map<String, Object> root, Path ymlPath) {
@@ -150,10 +159,65 @@ public final class AllcrudGeneratorYamlConfig {
         }
 
         String basePathPrefix = parseRoutingBasePathPrefix(root, ymlPath);
+        ExceptionHandlerConfig exceptionHandler = parseExceptionHandlerConfig(root, packages, ymlPath);
 
         return new AllcrudGeneratorYamlConfig(
                 pojoNamingStyle, packages, defaultLayersToGenerate, defaultPojoOnRegenerate,
-                Map.copyOf(resourceOverrides), basePathPrefix);
+                Map.copyOf(resourceOverrides), basePathPrefix, exceptionHandler);
+    }
+
+    // Absent "exceptionHandler" section entirely -> generate:true (opt-out default, see
+    // ExceptionHandlerConfig), package falls back to packages.controller, className defaults to
+    // "GlobalExceptionHandler". packages.controller is currently a mandatory key (parsePackages
+    // above throws if any of the 5 layers is missing, unconditionally), which makes the
+    // "generate=true but no package resolved" branch below unreachable under today's schema -
+    // written anyway as a defensive/future-proofing check, not because it's reachable now: if
+    // packages.controller's mandatoriness ever relaxes, this is the only thing standing between
+    // a silent null package and a confusing NPE deep in AllcrudGenerator.
+    private static ExceptionHandlerConfig parseExceptionHandlerConfig(
+            Map<String, Object> root, Map<GeneratedLayer, String> packages, Path ymlPath) {
+        boolean generate = true;
+        String targetPackage = null;
+        String className = DEFAULT_EXCEPTION_HANDLER_CLASS_NAME;
+
+        Object node = root.get("exceptionHandler");
+        if (node != null) {
+            Map<String, Object> exceptionHandlerNode = requireMap(node, "exceptionHandler", ymlPath);
+            requireOnlyKeys(exceptionHandlerNode, EXCEPTION_HANDLER_ALLOWED_KEYS, "exceptionHandler", ymlPath);
+
+            Object generateRaw = exceptionHandlerNode.get("generate");
+            if (generateRaw != null) {
+                if (!(generateRaw instanceof Boolean)) {
+                    throw configError("exceptionHandler.generate", ymlPath,
+                            "must be a boolean, found: " + generateRaw);
+                }
+                generate = (Boolean) generateRaw;
+            }
+
+            Object packageRaw = exceptionHandlerNode.get("package");
+            if (packageRaw != null) {
+                targetPackage = requireString(packageRaw, "exceptionHandler.package", ymlPath);
+            }
+
+            Object classNameRaw = exceptionHandlerNode.get("className");
+            if (classNameRaw != null) {
+                className = requireString(classNameRaw, "exceptionHandler.className", ymlPath);
+            }
+        }
+
+        if (targetPackage == null) {
+            targetPackage = packages.get(GeneratedLayer.CONTROLLER);
+        }
+
+        if (generate && targetPackage == null) {
+            throw configError("exceptionHandler", ymlPath,
+                    "generate is true (the default) but no package could be resolved for it - "
+                            + "either declare \"exceptionHandler.package\" explicitly, or set "
+                            + "\"exceptionHandler.generate: false\" if this project doesn't want a "
+                            + "GlobalExceptionHandler generated");
+        }
+
+        return new ExceptionHandlerConfig(generate, generate ? targetPackage : null, className);
     }
 
     // Absent "routing" section entirely -> "" (no opinion, e.g. no forced "/api" prefix) -
