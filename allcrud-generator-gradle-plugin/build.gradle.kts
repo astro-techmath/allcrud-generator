@@ -1,6 +1,7 @@
 plugins {
     java
     `java-gradle-plugin`
+    `maven-publish`
     id("io.spring.dependency-management") version "1.1.7"
 }
 
