@@ -25,7 +25,7 @@ import java.util.Map;
  * Not registered via META-INF/services (SPI): CodegenConfigLoader#forName falls back to
  * Class.forName(name).newInstance() when no SPI provider matches the given name, so the
  * generation driver just passes this class's fully-qualified name as the "generator name"
- * (see ProductExampleGeneration).
+ * (see AllcrudGenerator).
  */
 public class AllcrudSpringCodegen extends SpringCodegen {
 

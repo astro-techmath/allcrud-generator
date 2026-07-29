@@ -44,10 +44,18 @@
     allcrudEntityName/allcrudPojoClassName/allcrudIdType at the operations level).
     CodegenModel isn't a Map like OperationsMap, so vendorExtensions (dotted-path,
     same idiom as vendorExtensions.x-class-extra-annotation above) is how a model-level
-    custom value gets exposed to this template. Models without an "id" property (e.g.
-    the paginated *Page wrapper schemas) won't have this set - a pre-existing, accepted
-    limitation from when this hardcode was first introduced, not new. }}
-public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}} implements {{#allcrudUseDto}}AbstractEntityDTO{{/allcrudUseDto}}{{^allcrudUseDto}}AbstractEntityVO{{/allcrudUseDto}}<{{vendorExtensions.allcrudIdType}}> {{>permits}}{
+    custom value gets exposed to this template.
+
+    The whole "implements ..." clause is gated on vendorExtensions.allcrudIdType being
+    present - this is deliberate, not a workaround for one spec's models: a model with
+    no "id" property is not an Allcrud entity VO/DTO at all (a custom error schema, a
+    config object, anything an OpenAPI spec is free to declare), so it must not
+    implement AbstractEntityVO/AbstractEntityDTO. Without this guard the class would
+    render "implements AbstractEntityVO<>" - an empty type argument, a compile error.
+    Historical motivation: this surfaced for real via product-example.yaml's now-removed
+    ProductPage/OrderPage pagination wrapper schemas (see git history) - but the fix
+    applies to any id-less model, not just paginated wrappers. }}
+public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}}{{#vendorExtensions.allcrudIdType}} implements {{#allcrudUseDto}}AbstractEntityDTO{{/allcrudUseDto}}{{^allcrudUseDto}}AbstractEntityVO{{/allcrudUseDto}}<{{vendorExtensions.allcrudIdType}}>{{/vendorExtensions.allcrudIdType}} {{>permits}}{
 {{#serializableModel}}
 
   private static final long serialVersionUID = 1L;

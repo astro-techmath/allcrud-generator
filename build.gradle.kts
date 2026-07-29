@@ -1,3 +1,10 @@
+import java.io.ByteArrayInputStream
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import javax.xml.parsers.DocumentBuilderFactory
+
 plugins {
     java
     application
@@ -45,4 +52,39 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Job 2: manual/on-demand check for a newer core version on Maven Central.
+// Does not validate compatibility (that's Job 1's job, on manual bump) - just
+// alerts that a newer allcrud version exists, as a reminder to go look.
+tasks.register("checkCoreUpdates") {
+    group = "verification"
+    description = "Checks Maven Central for a newer $allcrudCoreGroup:$allcrudCoreArtifact version than the one pinned in gradle.properties."
+
+    doLast {
+        val metadataUrl =
+            "https://repo1.maven.org/maven2/${allcrudCoreGroup.replace('.', '/')}/$allcrudCoreArtifact/maven-metadata.xml"
+
+        val client = HttpClient.newHttpClient()
+        val request = HttpRequest.newBuilder(URI.create(metadataUrl)).GET().build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+        if (response.statusCode() != 200) {
+            throw GradleException("Failed to fetch $metadataUrl - HTTP ${response.statusCode()}")
+        }
+
+        val document = DocumentBuilderFactory.newInstance()
+            .newDocumentBuilder()
+            .parse(ByteArrayInputStream(response.body().toByteArray()))
+        val latestVersion = document.getElementsByTagName("release").item(0).textContent
+
+        if (latestVersion != allcrudCoreVersion) {
+            throw GradleException(
+                "Newer $allcrudCoreGroup:$allcrudCoreArtifact version available: " +
+                    "$latestVersion (pinned: $allcrudCoreVersion). Consider bumping allcrudCoreVersion in gradle.properties."
+            )
+        }
+
+        println("$allcrudCoreGroup:$allcrudCoreArtifact is up to date (pinned: $allcrudCoreVersion).")
+    }
 }

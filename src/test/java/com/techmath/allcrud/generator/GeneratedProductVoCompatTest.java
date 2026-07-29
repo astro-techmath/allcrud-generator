@@ -36,12 +36,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class GeneratedProductVoCompatTest {
 
+    private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
     private static final String GENERATED_SOURCE_DIR = "build/generated/test-product-vo";
     private static final String COMPILED_CLASSES_DIR = "build/generated/test-product-vo-classes";
 
     @Test
     void generatedProductVoImplementsAbstractEntityVoOfLong() throws Exception {
-        ProductExampleGeneration.generate(GENERATED_SOURCE_DIR);
+        AllcrudGenerator.generate(new GenerationRequest(
+                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO, false));
 
         File generatedFile = new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/ProductVO.java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());

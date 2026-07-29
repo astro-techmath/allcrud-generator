@@ -13,6 +13,7 @@ import java.io.File;
 import java.lang.reflect.Type;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -36,21 +37,22 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class PojoNamingStyleSwitchCompatTest {
 
+    private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
     private static final String COMPILED_CLASSES_DIR_PREFIX = "build/generated/test-pojo-naming-style-classes-";
 
     @Test
     void voStyleProducesProductVoImplementingAbstractEntityVo() throws Exception {
-        assertPojoNamingStyle("VO", "ProductVO", "com.techmath.allcrud.entity.AbstractEntityVO");
+        assertPojoNamingStyle(PojoNamingStyle.VO, "ProductVO", "com.techmath.allcrud.entity.AbstractEntityVO");
     }
 
     @Test
     void dtoStyleProducesProductDtoImplementingAbstractEntityDto() throws Exception {
-        assertPojoNamingStyle("DTO", "ProductDTO", "com.techmath.allcrud.entity.AbstractEntityDTO");
+        assertPojoNamingStyle(PojoNamingStyle.DTO, "ProductDTO", "com.techmath.allcrud.entity.AbstractEntityDTO");
     }
 
-    private void assertPojoNamingStyle(String namingStyle, String expectedClassSimpleName, String expectedInterface) throws Exception {
-        String outputDir = "build/generated/test-pojo-naming-style-" + namingStyle.toLowerCase(Locale.ROOT);
-        ProductExampleGeneration.generate(outputDir, false, namingStyle);
+    private void assertPojoNamingStyle(PojoNamingStyle namingStyle, String expectedClassSimpleName, String expectedInterface) throws Exception {
+        String outputDir = "build/generated/test-pojo-naming-style-" + namingStyle.name().toLowerCase(Locale.ROOT);
+        AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), namingStyle, false));
 
         File generatedFile = new File(outputDir, "src/main/java/org/openapitools/model/" + expectedClassSimpleName + ".java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());
@@ -69,11 +71,11 @@ class PojoNamingStyleSwitchCompatTest {
         assertEquals("java.lang.Long", idTypeArgument.getTypeName());
     }
 
-    private Class<?> compileAndLoad(File sourceFile, String className, String namingStyle) throws Exception {
+    private Class<?> compileAndLoad(File sourceFile, String className, PojoNamingStyle namingStyle) throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-        File classesOutputDir = new File(COMPILED_CLASSES_DIR_PREFIX + namingStyle.toLowerCase(Locale.ROOT));
+        File classesOutputDir = new File(COMPILED_CLASSES_DIR_PREFIX + namingStyle.name().toLowerCase(Locale.ROOT));
         classesOutputDir.mkdirs();
 
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, Locale.getDefault(), null)) {

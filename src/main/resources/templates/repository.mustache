@@ -1,7 +1,7 @@
 {{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
     file - the stock "spring" generator has no repository template. Registered as a per-tag
     "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver code
-    (see ProductExampleGeneration), with output suffix "Repository.java".
+    (see AllcrudGenerator), with output suffix "Repository.java".
 
     allcrudEntityName / allcrudIdType are resolved by AllcrudSpringCodegen (a custom
     CodegenConfig, not the stock "spring" one) by inspecting the actual OpenAPI model - see

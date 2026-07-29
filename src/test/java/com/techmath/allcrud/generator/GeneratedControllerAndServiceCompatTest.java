@@ -17,6 +17,7 @@ import java.lang.reflect.Type;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -48,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class GeneratedControllerAndServiceCompatTest {
 
+    private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
     private static final String GENERATED_SOURCE_DIR = "build/generated/test-controller-service";
     private static final String COMPILED_CLASSES_DIR = "build/generated/test-controller-service-classes";
 
@@ -152,7 +154,8 @@ class GeneratedControllerAndServiceCompatTest {
     }
 
     private List<Class<?>> generateCompileAndLoad() throws Exception {
-        ProductExampleGeneration.generate(GENERATED_SOURCE_DIR, true);
+        AllcrudGenerator.generate(new GenerationRequest(
+                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO, true));
 
         File modelFile = new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/ProductVO.java");
         File controllerFile = new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/api/ProductController.java");

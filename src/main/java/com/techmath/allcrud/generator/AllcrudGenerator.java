@@ -4,33 +4,32 @@ import org.openapitools.codegen.ClientOptInput;
 import org.openapitools.codegen.DefaultGenerator;
 import org.openapitools.codegen.config.CodegenConfigurator;
 
-// TEST-SUPPORT ONLY - not the generator's production entrypoint.
-// Shares the CodegenConfigurator/DefaultGenerator invocation duplicated across this
-// module's compat tests (see GeneratedProductVoCompatTest,
-// GeneratedControllerAndServiceCompatTest). The shape of a real production entrypoint
-// (public API, CLI, Gradle plugin, whatever) is a separate, not-yet-discussed design
-// decision - do not grow this class into one as a side effect of test cleanup.
-final class ProductExampleGeneration {
+// Public generation entrypoint - not a production entrypoint (CLI, Gradle plugin) by
+// itself yet, that's a separate, not-yet-designed decision. This is the generic,
+// parameterized form of what used to be the test-only ProductExampleGeneration: same
+// CodegenConfigurator/DefaultGenerator invocation, same AllcrudSpringCodegen and
+// custom templates, no design decisions reopened.
+public final class AllcrudGenerator {
 
-    private static final String SPEC = "src/main/resources/specs/product-example.yaml";
-    private static final String TEMPLATE_DIR = "src/main/resources/templates";
+    // Bundled with this generator's own custom templates (pojo/model/repository/
+    // converter/service) - not something a caller supplies, unlike specPath/outputDir.
+    //
+    // "templates" (not "src/main/resources/templates"): CodegenConfigurator#setTemplateDir
+    // is checked both as a filesystem path AND, transparently, as a classpath resource root
+    // by openapi-generator's GeneratorTemplateContentLocator (no "classpath:" prefix needed -
+    // it just retries the same string via ClassLoader#getResource). "src/main/resources"
+    // is where the templates live in this module's source tree, but Gradle's processResources
+    // strips that prefix when packaging - the jar has them at "templates/*.mustache", so that's
+    // the string that must resolve. The filesystem-relative form only ever worked by accident,
+    // because our own tests happen to run with the CWD at this repo's root; any real caller
+    // (the Gradle plugin included) runs with a different CWD and the filesystem check silently
+    // fails over to this classpath check - see AllcrudGeneratorPluginFunctionalTest.
+    private static final String TEMPLATE_DIR = "templates";
 
-    private ProductExampleGeneration() {
+    private AllcrudGenerator() {
     }
 
-    static void generate(String outputDir) {
-        generate(outputDir, false, null);
-    }
-
-    static void generate(String outputDir, boolean withApiLayerTemplates) {
-        generate(outputDir, withApiLayerTemplates, null);
-    }
-
-    // pojoNamingStyle: "VO" or "DTO", passed through to AllcrudSpringCodegen as the
-    // allcrudPojoNamingStyle additional property; null lets it default (VO). modelNameSuffix
-    // is NOT set here - AllcrudSpringCodegen#processOpts derives it from that same property,
-    // so this is the one knob callers need.
-    static void generate(String outputDir, boolean withApiLayerTemplates, String pojoNamingStyle) {
+    public static void generate(GenerationRequest request) {
         CodegenConfigurator configurator = new CodegenConfigurator()
                 // Custom CodegenConfig (see AllcrudSpringCodegen), not the stock "spring"
                 // generator: resolves allcrudEntityName/allcrudPojoClassName/allcrudIdType
@@ -39,21 +38,18 @@ final class ProductExampleGeneration {
                 // Class.forName(name).newInstance() when the name isn't a registered SPI
                 // generator, so a fully-qualified class name works here directly.
                 .setGeneratorName("com.techmath.allcrud.generator.codegen.AllcrudSpringCodegen")
-                .setInputSpec(SPEC)
+                .setInputSpec(request.specPath().toString())
                 .setTemplateDir(TEMPLATE_DIR)
-                .setOutputDir(outputDir)
+                .setOutputDir(request.outputDir().toString())
                 // We don't use the JsonNullable-based absent-vs-null distinction, and
                 // org.openapitools:jackson-databind-nullable isn't a dependency here -
                 // disabling this avoids an unresolved import in the generated VO/DTO.
-                .addAdditionalProperty("openApiNullable", false);
-
-        if (pojoNamingStyle != null) {
-            configurator.addAdditionalProperty("allcrudPojoNamingStyle", pojoNamingStyle);
-        }
+                .addAdditionalProperty("openApiNullable", false)
+                .addAdditionalProperty("allcrudPojoNamingStyle", request.pojoNamingStyle().name());
 
         ClientOptInput clientOptInput = configurator.toClientOptInput();
 
-        if (withApiLayerTemplates) {
+        if (request.generateServiceLayer()) {
             registerApiLayerTemplates(clientOptInput);
         }
 
