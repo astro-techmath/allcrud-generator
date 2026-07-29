@@ -45,7 +45,7 @@ class BasePathCompatTest {
                 Set.of(GeneratedLayer.CONTROLLER),
                 Map.of(GeneratedLayer.CONTROLLER, "org.openapitools.api"),
                 OnRegenerate.PRESERVE,
-                Map.of("Product", new ResourceOverride(null, null, "/custom/products")),
+                Map.of("Product", new ResourceOverride(null, null, "/custom/products", null)),
                 "/v1"));
 
         String content = Files.readString(sourceRoot.resolve("org/openapitools/api/ProductController.java"));

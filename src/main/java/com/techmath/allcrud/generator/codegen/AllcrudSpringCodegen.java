@@ -55,16 +55,42 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // allcrud-generator.yml either - rejected: doesn't support entities living in different
     // packages per module/domain, e.g. com.acme.catalog.Product vs com.acme.sales.Order).
     public static final String ALLCRUD_SOURCE_ROOT = "allcrudSourceRoot";
-    // Global (not per-resource) target packages for the other 4 layers - plain
-    // additionalProperties, no per-operation resolution needed here: DefaultGenerator merges
-    // config.additionalProperties() into every operation/model bundle automatically
-    // (confirmed empirically - operation.putAll(config.additionalProperties()) in
-    // DefaultGenerator#generateApis), the same mechanism that already makes {{javaxPackage}}
-    // work in these templates without any custom code in this class for it.
+    // Target packages the templates actually read for the other 4 layers - NEVER set as
+    // additionalProperties directly (unlike allcrudEntityName/allcrudBasePath's siblings,
+    // that's the point): only ever objs.put() per-resource below, in
+    // postProcessOperationsWithModels. Setting these as additionalProperties was tried first and
+    // was wrong - DefaultGenerator#generateApis calls
+    // operation.putAll(config.additionalProperties()) AFTER postProcessOperationsWithModels
+    // already ran for that operation (confirmed by reading DefaultGenerator's source), so any
+    // per-resource value put here under one of these exact keys got silently clobbered right
+    // back to the global default by that putAll. See ALLCRUD_LAYER_PACKAGES below for where the
+    // actual global defaults now travel instead.
     public static final String ALLCRUD_POJO_PACKAGE = "allcrudPojoPackage";
     public static final String ALLCRUD_REPOSITORY_PACKAGE = "allcrudRepositoryPackage";
     public static final String ALLCRUD_CONVERTER_PACKAGE = "allcrudConverterPackage";
     public static final String ALLCRUD_SERVICE_PACKAGE = "allcrudServicePackage";
+    // layer name -> global package (AllcrudGenerator#layerPackages) - safe to set as a plain
+    // additionalProperty (unlike the 4 above) because no template reads "allcrudLayerPackages"
+    // directly; only resolvePackage below does, as the fallback when a resource has no override.
+    public static final String ALLCRUD_LAYER_PACKAGES = "allcrudLayerPackages";
+    // resourceName -> layer name -> package (ResourceOverride#packageOverrides, see
+    // AllcrudGenerator#packageOverrides) - a per-resource exception to ALLCRUD_LAYER_PACKAGES.
+    // Resolved per-resource in postProcessOperationsWithModels (resolvePackage) - without this, a
+    // Controller/Service/Converter importing another layer's class would always import the
+    // GLOBAL package even when that resource's layer was relocated somewhere else entirely.
+    public static final String ALLCRUD_PACKAGE_OVERRIDES = "allcrudPackageOverrides";
+    // ModelsMap-level flags (postProcessModels, consumed at model.mustache's top level, outside
+    // the per-model {{#models}}{{#model}} loop where vendorExtensions.allcrudIdType lives) -
+    // gate the stock template's unconditional "import java.net.URI;"/"import java.util.*;" so
+    // generated POJOs only carry them when a property actually needs java.net.URI (format: uri)
+    // or java.util's unqualified ArrayList/HashMap/LinkedHashSet/Arrays (container or byte[]
+    // vars - see pojo.mustache's fluent add/put methods and Arrays.equals/hashCode calls).
+    // Both imports are unconditional in the untouched stock JavaSpring/model.mustache too (verified
+    // by diff) - not something this project introduced, but still dead weight in every one of
+    // this project's own generated POJOs so far, since {{#imports}} above already adds
+    // java.net.URI on its own account whenever a property's type genuinely resolves to it.
+    public static final String ALLCRUD_NEEDS_URI_IMPORT = "allcrudNeedsUriImport";
+    public static final String ALLCRUD_NEEDS_JAVA_UTIL_IMPORT = "allcrudNeedsJavaUtilImport";
 
     private static final String X_ALLCRUD_ID_TYPE = "x-allcrud-id-type";
     private static final String DTO_STYLE = "DTO";
@@ -144,15 +170,32 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     public ModelsMap postProcessModels(ModelsMap objs) {
         objs = super.postProcessModels(objs);
 
+        boolean needsUriImport = false;
+        boolean needsJavaUtilImport = false;
+
         for (ModelMap modelMap : objs.getModels()) {
             CodegenModel model = modelMap.getModel();
             CodegenProperty idProperty = findIdProperty(model);
             if (idProperty != null) {
                 model.vendorExtensions.put(ALLCRUD_ID_TYPE, idProperty.dataType);
             }
+            for (CodegenProperty property : model.vars) {
+                needsUriImport = needsUriImport || usesUri(property);
+                needsJavaUtilImport = needsJavaUtilImport || property.isContainer || property.isByteArray;
+            }
         }
 
+        objs.put(ALLCRUD_NEEDS_URI_IMPORT, needsUriImport);
+        objs.put(ALLCRUD_NEEDS_JAVA_UTIL_IMPORT, needsJavaUtilImport);
+
         return objs;
+    }
+
+    private boolean usesUri(CodegenProperty property) {
+        if ("URI".equals(property.dataType)) {
+            return true;
+        }
+        return property.items != null && "URI".equals(property.items.dataType);
     }
 
     /**
@@ -225,6 +268,10 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             objs.put(ALLCRUD_ID_TYPE, idTypeOverride != null ? idTypeOverride : idProperty.dataType);
             objs.put(ALLCRUD_BASE_PATH, resolveBasePath(resourceModel.schemaName));
             objs.put(ALLCRUD_ENTITY_PACKAGE, resolveEntityPackage(resourceModel.schemaName));
+            objs.put(ALLCRUD_POJO_PACKAGE, resolvePackage(resourceModel.schemaName, "POJO"));
+            objs.put(ALLCRUD_REPOSITORY_PACKAGE, resolvePackage(resourceModel.schemaName, "REPOSITORY"));
+            objs.put(ALLCRUD_CONVERTER_PACKAGE, resolvePackage(resourceModel.schemaName, "CONVERTER"));
+            objs.put(ALLCRUD_SERVICE_PACKAGE, resolvePackage(resourceModel.schemaName, "SERVICE"));
             entityNameByApiName.put(operations.getClassname(), resourceModel.schemaName);
             break;
         }
@@ -296,6 +343,29 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         Object prefixValue = additionalProperties().get(ALLCRUD_BASE_PATH_PREFIX);
         String prefix = prefixValue != null ? prefixValue.toString() : "";
         return prefix + "/" + entityName.toLowerCase(Locale.ROOT);
+    }
+
+    // resources.<entityName>.<layer>.package (ALLCRUD_PACKAGE_OVERRIDES) wins outright over the
+    // layer's global package (ALLCRUD_LAYER_PACKAGES) when present - same "override replaces,
+    // never merges/concatenates" rule as resolveBasePath above.
+    @SuppressWarnings("unchecked")
+    private String resolvePackage(String entityName, String layerName) {
+        Object overridesValue = additionalProperties().get(ALLCRUD_PACKAGE_OVERRIDES);
+        if (overridesValue instanceof Map<?, ?> overridesByResource) {
+            Object layerOverrides = ((Map<String, Object>) overridesByResource).get(entityName);
+            if (layerOverrides instanceof Map<?, ?> layerOverridesMap) {
+                Object override = ((Map<String, Object>) layerOverridesMap).get(layerName);
+                if (override != null) {
+                    return override.toString();
+                }
+            }
+        }
+        Object layerPackagesValue = additionalProperties().get(ALLCRUD_LAYER_PACKAGES);
+        if (layerPackagesValue instanceof Map<?, ?> layerPackages) {
+            Object globalValue = ((Map<String, Object>) layerPackages).get(layerName);
+            return globalValue != null ? globalValue.toString() : null;
+        }
+        return null;
     }
 
     // The Entity is never generated (out of scope, hand-written by the consumer) and has no

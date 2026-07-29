@@ -86,14 +86,36 @@ public final class AllcrudGenerator {
                     // Converter it depends on, Service importing Repository, etc.) used to
                     // either hardcode "org.openapitools.*" or assume "same package, no import
                     // needed" - both wrong once packages.<layer> in allcrud-generator.yml can
-                    // put each layer in a different package. These 4 are global for the whole
-                    // run (packages is not per-resource); allcrudEntityPackage is resolved
-                    // per-resource inside AllcrudSpringCodegen instead (see there for why).
+                    // put each layer in a different package.
+                    //
+                    // allcrudPojoPackage/RepositoryPackage/ConverterPackage/ServicePackage are
+                    // deliberately NOT set here as additionalProperties (unlike a first attempt
+                    // at this): DefaultGenerator#generateApis calls
+                    // operation.putAll(config.additionalProperties()) AFTER
+                    // postProcessOperationsWithModels already ran for that same operation
+                    // (confirmed by reading DefaultGenerator's source, not assumed) - any
+                    // per-resource value AllcrudSpringCodegen#postProcessOperationsWithModels
+                    // puts under one of those 4 exact keys would be silently clobbered right
+                    // back to the global default by that putAll, since it blindly overwrites any
+                    // key present in additionalProperties(). allcrudEntityPackage/allcrudBasePath
+                    // don't hit this because they're NEVER set as additionalProperties at all -
+                    // only ever objs.put() per-resource, so putAll has nothing to clobber for
+                    // those key names. The fix here is the same: the 4 global defaults travel
+                    // under a DIFFERENT key (allcrudLayerPackages, a plain layer-name -> package
+                    // map, read only by AllcrudSpringCodegen, never by a template directly) so
+                    // putAll can't collide with the per-resource-resolved
+                    // allcrudPojoPackage/etc. keys the templates actually read.
                     .addAdditionalProperty("allcrudSourceRoot", request.sourceRoot().toString())
-                    .addAdditionalProperty("allcrudPojoPackage", request.packages().get(GeneratedLayer.POJO))
-                    .addAdditionalProperty("allcrudRepositoryPackage", request.packages().get(GeneratedLayer.REPOSITORY))
-                    .addAdditionalProperty("allcrudConverterPackage", request.packages().get(GeneratedLayer.CONVERTER))
-                    .addAdditionalProperty("allcrudServicePackage", request.packages().get(GeneratedLayer.SERVICE));
+                    .addAdditionalProperty("allcrudLayerPackages", layerPackages(request))
+                    // Per-resource exceptions (ResourceOverride#packageOverrides) to the global
+                    // layer packages just above - resourceName -> layer name -> package. Read by
+                    // AllcrudSpringCodegen#postProcessOperationsWithModels alongside
+                    // allcrudLayerPackages to resolve each of the 4 per-resource, so a
+                    // Controller/Service/Converter importing another layer's class always
+                    // imports the package that layer ACTUALLY landed in after relocate() below -
+                    // not the global default, which would be wrong the instant a resource
+                    // overrides one of its layers' packages.
+                    .addAdditionalProperty("allcrudPackageOverrides", packageOverrides(request));
 
             ClientOptInput clientOptInput = configurator.toClientOptInput();
 
@@ -134,6 +156,19 @@ public final class AllcrudGenerator {
         }
     }
 
+    // layer name (GeneratedLayer#name(), e.g. "SERVICE") -> global package - only the 4 layers
+    // AllcrudSpringCodegen resolves per-resource need to travel this way (see the comment above
+    // this method's call site); CONTROLLER is deliberately excluded, nothing ever imports "the
+    // Controller" from another layer, so it has no per-resource resolution to feed.
+    private static Map<String, String> layerPackages(GenerationRequest request) {
+        Map<String, String> byLayerName = new LinkedHashMap<>();
+        byLayerName.put(GeneratedLayer.POJO.name(), request.packages().get(GeneratedLayer.POJO));
+        byLayerName.put(GeneratedLayer.REPOSITORY.name(), request.packages().get(GeneratedLayer.REPOSITORY));
+        byLayerName.put(GeneratedLayer.CONVERTER.name(), request.packages().get(GeneratedLayer.CONVERTER));
+        byLayerName.put(GeneratedLayer.SERVICE.name(), request.packages().get(GeneratedLayer.SERVICE));
+        return byLayerName;
+    }
+
     private static Map<String, String> basePathOverrides(GenerationRequest request) {
         Map<String, String> overrides = new LinkedHashMap<>();
         for (Map.Entry<String, ResourceOverride> entry : request.resourceOverrides().entrySet()) {
@@ -141,6 +176,25 @@ public final class AllcrudGenerator {
             if (basePath != null) {
                 overrides.put(entry.getKey(), basePath);
             }
+        }
+        return overrides;
+    }
+
+    // resourceName -> layer name (GeneratedLayer#name(), e.g. "SERVICE") -> package. Nested Map
+    // shape mirrors basePathOverrides' flat one but one level deeper, since a resource can
+    // override more than one layer's package independently.
+    private static Map<String, Map<String, String>> packageOverrides(GenerationRequest request) {
+        Map<String, Map<String, String>> overrides = new LinkedHashMap<>();
+        for (Map.Entry<String, ResourceOverride> entry : request.resourceOverrides().entrySet()) {
+            Map<GeneratedLayer, String> layerOverrides = entry.getValue().packageOverrides();
+            if (layerOverrides == null || layerOverrides.isEmpty()) {
+                continue;
+            }
+            Map<String, String> byLayerName = new LinkedHashMap<>();
+            for (Map.Entry<GeneratedLayer, String> layerEntry : layerOverrides.entrySet()) {
+                byLayerName.put(layerEntry.getKey().name(), layerEntry.getValue());
+            }
+            overrides.put(entry.getKey(), byLayerName);
         }
         return overrides;
     }
@@ -172,7 +226,10 @@ public final class AllcrudGenerator {
             return;
         }
 
-        String targetPackage = request.packages().get(layer);
+        String overridePackage = override != null && override.packageOverrides() != null
+                ? override.packageOverrides().get(layer)
+                : null;
+        String targetPackage = overridePackage != null ? overridePackage : request.packages().get(layer);
         if (targetPackage == null) {
             throw new IllegalStateException(
                     "No target package configured for layer " + layer + " (file " + fileName + ")");

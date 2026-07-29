@@ -44,6 +44,9 @@ import java.util.Set;
 //     Product:
 //       pojo:
 //         onRegenerate: overwrite
+//         package: com.acme.catalog.dto   # optional per-resource exception to packages.pojo
+//       repository:
+//         package: com.acme.catalog.persistence   # same "package" key on any of the 5 layers
 //   routing:
 //     basePathPrefix: /v1   # optional, default "" (no opinion, e.g. no forced "/api")
 //
@@ -54,8 +57,10 @@ public final class AllcrudGeneratorYamlConfig {
     private static final Set<String> ROOT_ALLOWED_KEYS =
             Set.of("pojoNamingStyle", "packages", "defaults", "resources", "routing");
     private static final Set<String> DEFAULTS_ALLOWED_KEYS = Set.of("generate", "pojo");
-    private static final Set<String> RESOURCE_ALLOWED_KEYS = Set.of("generate", "pojo", "basePath");
-    private static final Set<String> POJO_NODE_ALLOWED_KEYS = Set.of("onRegenerate");
+    private static final Set<String> RESOURCE_ALLOWED_KEYS =
+            Set.of("generate", "pojo", "repository", "converter", "service", "controller", "basePath");
+    private static final Set<String> POJO_NODE_ALLOWED_KEYS = Set.of("onRegenerate", "package");
+    private static final Set<String> LAYER_PACKAGE_NODE_ALLOWED_KEYS = Set.of("package");
     private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
 
     private final PojoNamingStyle pojoNamingStyle;
@@ -136,8 +141,11 @@ public final class AllcrudGeneratorYamlConfig {
                 String basePath = resourceNode.containsKey("basePath")
                         ? requireString(resourceNode.get("basePath"), location + ".basePath", ymlPath)
                         : null;
+                Map<GeneratedLayer, String> packageOverrides =
+                        parseResourcePackageOverrides(resourceNode, location, ymlPath);
 
-                resourceOverrides.put(resourceName, new ResourceOverride(generate, pojoOnRegenerate, basePath));
+                resourceOverrides.put(resourceName,
+                        new ResourceOverride(generate, pojoOnRegenerate, basePath, packageOverrides));
             }
         }
 
@@ -255,6 +263,43 @@ public final class AllcrudGeneratorYamlConfig {
         }
         throw configError(location, ymlPath, "unknown layer \"" + name + "\" - expected one of "
                 + "pojo, repository, converter, service, controller");
+    }
+
+    // resources.<name>.<layer>.package for all 5 layers (pojo included, alongside its existing
+    // onRegenerate) - a layer node absent, or present without "package", contributes no entry
+    // (inherits GenerationRequest#packages' global entry for that layer instead). "pojo" reuses
+    // its existing node (already validated/read for onRegenerate by parsePojoOnRegenerate above)
+    // rather than requiring a second nested block for the same yml key.
+    private static Map<GeneratedLayer, String> parseResourcePackageOverrides(
+            Map<String, Object> resourceNode, String location, Path ymlPath) {
+        Map<GeneratedLayer, String> overrides = new LinkedHashMap<>();
+
+        if (resourceNode.containsKey("pojo")) {
+            Map<String, Object> pojoNode = requireMap(resourceNode.get("pojo"), location + ".pojo", ymlPath);
+            Object pkg = pojoNode.get("package");
+            if (pkg != null) {
+                overrides.put(GeneratedLayer.POJO, requireString(pkg, location + ".pojo.package", ymlPath));
+            }
+        }
+
+        for (GeneratedLayer layer : GeneratedLayer.values()) {
+            if (layer == GeneratedLayer.POJO) {
+                continue;
+            }
+            String key = layer.name().toLowerCase(Locale.ROOT);
+            if (!resourceNode.containsKey(key)) {
+                continue;
+            }
+            String layerLocation = location + "." + key;
+            Map<String, Object> layerNode = requireMap(resourceNode.get(key), layerLocation, ymlPath);
+            requireOnlyKeys(layerNode, LAYER_PACKAGE_NODE_ALLOWED_KEYS, layerLocation, ymlPath);
+            Object pkg = layerNode.get("package");
+            if (pkg != null) {
+                overrides.put(layer, requireString(pkg, layerLocation + ".package", ymlPath));
+            }
+        }
+
+        return Map.copyOf(overrides);
     }
 
     // Absent "pojo" node -> PRESERVE default. Present but without "onRegenerate" -> also
