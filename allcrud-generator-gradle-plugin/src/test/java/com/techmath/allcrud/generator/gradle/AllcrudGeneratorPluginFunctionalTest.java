@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Applies the plugin for real against a throwaway fixture project (GradleRunner +
@@ -36,6 +37,14 @@ class AllcrudGeneratorPluginFunctionalTest {
             }
             Files.copy(in, specTarget, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+    // Real allcrud-generator.yml (packages/defaults/resources), not a hardcoded placeholder -
+    // proves the task actually reads yml-driven config end to end, including a per-resource
+    // override (Order: generate [pojo, controller] only).
+    @BeforeEach
+    void copyConfigFixture() throws IOException {
+        copyResource("/allcrud-generator-example.yml", projectDir.resolve("allcrud-generator.yml"));
     }
 
     // Entity generation is out of scope for allcrud-generator's V1 (already decided) -
@@ -69,8 +78,19 @@ class AllcrudGeneratorPluginFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":generateAllcrud").getOutcome());
 
-        Path generatedVo = projectDir.resolve("build/generated/sources/allcrud/src/main/java/org/openapitools/model/ProductVO.java");
+        // Default outputDir is now src/main/java directly (see AllcrudGeneratorPlugin) - no
+        // more build/generated/... default, per the "never default to build/" rule.
+        Path generatedVo = projectDir.resolve("src/main/java/org/openapitools/model/ProductVO.java");
         assertTrue(Files.exists(generatedVo), "Expected generated file at " + generatedVo);
+
+        // Order's "generate: [repository, service]" (allcrud-generator-example.yml) REPLACES
+        // the default layer list entirely - proves the yml override reaches through the real
+        // task.
+        assertTrue(Files.exists(projectDir.resolve("src/main/java/org/openapitools/api/OrderRepository.java")));
+        assertTrue(Files.exists(projectDir.resolve("src/main/java/org/openapitools/api/OrderService.java")));
+        assertFalse(Files.exists(projectDir.resolve("src/main/java/org/openapitools/model/OrderVO.java")));
+        assertFalse(Files.exists(projectDir.resolve("src/main/java/org/openapitools/api/OrderController.java")));
+        assertFalse(Files.exists(projectDir.resolve("src/main/java/org/openapitools/api/OrderConverter.java")));
     }
 
     @Test

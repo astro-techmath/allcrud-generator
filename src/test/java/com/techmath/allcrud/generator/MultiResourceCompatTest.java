@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -138,7 +139,15 @@ class MultiResourceCompatTest {
     private Map<String, Class<?>> generateCompileAndLoad() throws Exception {
         // Single generate() call for both resources - the whole point of this test.
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO, true));
+                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
+                Set.of(GeneratedLayer.values()),
+                Map.of(
+                        GeneratedLayer.POJO, "org.openapitools.model",
+                        GeneratedLayer.CONTROLLER, "org.openapitools.api",
+                        GeneratedLayer.SERVICE, "org.openapitools.api",
+                        GeneratedLayer.REPOSITORY, "org.openapitools.api",
+                        GeneratedLayer.CONVERTER, "org.openapitools.api"),
+                OnRegenerate.PRESERVE, Map.of()));
 
         List<String> generatedSimpleNames = List.of(
                 "ProductController", "ProductService", "ProductRepository", "ProductConverter",
@@ -146,10 +155,10 @@ class MultiResourceCompatTest {
         );
 
         List<File> sourceFiles = new java.util.ArrayList<>();
-        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/ProductVO.java"));
-        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/OrderVO.java"));
+        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java"));
+        sourceFiles.add(new File(GENERATED_SOURCE_DIR, "org/openapitools/model/OrderVO.java"));
         for (String simpleName : generatedSimpleNames) {
-            sourceFiles.add(new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/api/" + simpleName + ".java"));
+            sourceFiles.add(new File(GENERATED_SOURCE_DIR, "org/openapitools/api/" + simpleName + ".java"));
         }
         for (File generated : sourceFiles) {
             assertTrue(generated.exists(), "Expected generated file at " + generated.getAbsolutePath());

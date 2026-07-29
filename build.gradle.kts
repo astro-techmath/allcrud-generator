@@ -8,6 +8,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 plugins {
     java
     application
+    `maven-publish`
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -44,14 +45,35 @@ val openapiGeneratorVersion = "7.23.0"
 val junitVersion = "5.11.0"
 
 dependencies {
-    implementation("$allcrudCoreGroup:$allcrudCoreArtifact:$allcrudCoreVersion")
     implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
+    // allcrud-generator.yml parsing (AllcrudGeneratorYamlConfig) - already resolved
+    // transitively via openapi-generator's own dependency tree (confirmed via
+    // ./gradlew dependencies --configuration compileClasspath), declared explicitly here
+    // instead of relying on that accidental transitive availability.
+    implementation("org.yaml:snakeyaml:2.4")
+    // Only src/test/java references allcrud core classes (reflection + compiling
+    // generated fixtures against it) - main never does. Keeping this as "implementation"
+    // pulled it into allcrud-generator-gradle-plugin's own plugin classpath via
+    // implementation(project(":")), needlessly dragging in allcrud's runtime-scope Spring
+    // starters (unversioned by design - see allcrud's own POM) into plugin resolution.
+    testImplementation("$allcrudCoreGroup:$allcrudCoreArtifact:$allcrudCoreVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:$junitVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Minimal publish setup - just enough for allcrud-generator-gradle-plugin's
+// implementation(project(":")) to resolve as a real coordinate via publishToMavenLocal.
+// Not a statement about real (Central) publishing, which is a separate decision.
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }
 
 // Job 2: manual/on-demand check for a newer core version on Maven Central.

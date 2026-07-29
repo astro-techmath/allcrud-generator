@@ -17,6 +17,8 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,9 +54,14 @@ class PojoNamingStyleSwitchCompatTest {
 
     private void assertPojoNamingStyle(PojoNamingStyle namingStyle, String expectedClassSimpleName, String expectedInterface) throws Exception {
         String outputDir = "build/generated/test-pojo-naming-style-" + namingStyle.name().toLowerCase(Locale.ROOT);
-        AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), namingStyle, false));
+        AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), namingStyle,
+                Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
+                Map.of(
+                        GeneratedLayer.POJO, "org.openapitools.model",
+                        GeneratedLayer.CONTROLLER, "org.openapitools.api"),
+                OnRegenerate.PRESERVE, Map.of()));
 
-        File generatedFile = new File(outputDir, "src/main/java/org/openapitools/model/" + expectedClassSimpleName + ".java");
+        File generatedFile = new File(outputDir, "org/openapitools/model/" + expectedClassSimpleName + ".java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());
 
         Class<?> pojoClass = compileAndLoad(generatedFile, "org.openapitools.model." + expectedClassSimpleName, namingStyle);

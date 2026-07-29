@@ -18,6 +18,8 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,9 +45,14 @@ class GeneratedProductVoCompatTest {
     @Test
     void generatedProductVoImplementsAbstractEntityVoOfLong() throws Exception {
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO, false));
+                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
+                Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
+                Map.of(
+                        GeneratedLayer.POJO, "org.openapitools.model",
+                        GeneratedLayer.CONTROLLER, "org.openapitools.api"),
+                OnRegenerate.PRESERVE, Map.of()));
 
-        File generatedFile = new File(GENERATED_SOURCE_DIR, "src/main/java/org/openapitools/model/ProductVO.java");
+        File generatedFile = new File(GENERATED_SOURCE_DIR, "org/openapitools/model/ProductVO.java");
         assertTrue(generatedFile.exists(), "Expected generated file at " + generatedFile.getAbsolutePath());
 
         Class<?> productVO = compileAndLoad(generatedFile);

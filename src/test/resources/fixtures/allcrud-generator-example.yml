@@ -1,0 +1,23 @@
+# TEST FIXTURE - exercises AllcrudGeneratorYamlConfig against product-example.yaml's two
+# resources (Product, Order). Order intentionally generates a reduced layer set (pojo +
+# repository only - CONTROLLER always needs SERVICE+CONVERTER and SERVICE always needs
+# REPOSITORY, see AllcrudGeneratorYamlConfig#validateLayerDependencies, so a reduced list has
+# to respect that dependency chain) and Product overrides just the pojo overwrite policy -
+# see AllcrudGeneratorYamlConfigCompatTest for what each override is expected to produce.
+pojoNamingStyle: VO
+packages:
+  pojo: org.openapitools.model
+  repository: org.openapitools.api
+  converter: org.openapitools.api
+  service: org.openapitools.api
+  controller: org.openapitools.api
+defaults:
+  generate: [pojo, repository, converter, service, controller]
+  pojo:
+    onRegenerate: preserve
+resources:
+  Order:
+    generate: [pojo, repository]
+  Product:
+    pojo:
+      onRegenerate: overwrite
