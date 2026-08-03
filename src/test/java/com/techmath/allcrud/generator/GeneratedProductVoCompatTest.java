@@ -46,7 +46,7 @@ class GeneratedProductVoCompatTest {
     void generatedProductVoImplementsAbstractEntityVoOfLong() throws Exception {
         EntityFixtures.copyInto(Path.of(GENERATED_SOURCE_DIR), "Product", "Order");
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
+                SPEC, Path.of(GENERATED_SOURCE_DIR), EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",

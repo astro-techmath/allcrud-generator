@@ -14,16 +14,24 @@
     the instant a real yml put service/repository in different packages.
     Generated class name is prefixed with allcrudEntityName ("Product"), not the stock
     per-tag classname variable ("ProductsApi", plural, "Api"-suffixed) - that mismatch was
-    a naming bug fixed after the fact, not an intentional customization. }}
+    a naming bug fixed after the fact, not an intentional customization.
+    @Service: without a stereotype annotation this class is never registered as a Spring bean
+    at all - the generated Controller's constructor-injected Service field would fail with
+    NoSuchBeanDefinitionException the moment a real Spring context tried to start, in ANY
+    consumer, not just this project's own integration tests. Missed for a long time because
+    nothing before the integrationTest layer ever actually booted a Spring context against
+    generated output - compiling was never enough to catch it. }}
 package {{package}};
 
 import com.techmath.allcrud.repository.EntityRepository;
 import com.techmath.allcrud.service.CrudService;
 import {{allcrudEntityPackage}}.{{allcrudEntityName}};
 import {{allcrudRepositoryPackage}}.{{allcrudEntityName}}Repository;
+import org.springframework.stereotype.Service;
 
 {{>generatedAnnotation}}
 {{#operations}}
+@Service
 public class {{allcrudEntityName}}Service extends CrudService<{{allcrudEntityName}}, {{allcrudIdType}}> {
 
     private final {{allcrudEntityName}}Repository repository;

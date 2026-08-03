@@ -37,12 +37,24 @@ public abstract class AllcrudGenerateTask extends DefaultTask {
     @OutputDirectory
     public abstract DirectoryProperty getJavaSourceDir();
 
+    // Same duplicate-property reason as getJavaSourceDir() above (Gradle disallows deriving one
+    // @OutputDirectory of a task from another @OutputDirectory of that same task before the task
+    // has run) - getTestOutputDir() is what generate() reads, getJavaTestSourceDir() is what
+    // AllcrudGeneratorPlugin wires the "test" source set's java srcDir from, both fed by the
+    // extension's single testOutputDir convention.
+    @OutputDirectory
+    public abstract DirectoryProperty getTestOutputDir();
+
+    @OutputDirectory
+    public abstract DirectoryProperty getJavaTestSourceDir();
+
     @TaskAction
     public void generate() {
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(getConfigFile().get().getAsFile().toPath());
         AllcrudGenerator.generate(config.toGenerationRequest(
                 getSpecFile().get().getAsFile().toPath(),
-                getOutputDir().get().getAsFile().toPath()));
+                getOutputDir().get().getAsFile().toPath(),
+                getTestOutputDir().get().getAsFile().toPath()));
     }
 
 }

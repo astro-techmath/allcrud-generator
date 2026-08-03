@@ -46,7 +46,12 @@ import java.util.Set;
 //         onRegenerate: overwrite
 //         package: com.acme.catalog.dto   # optional per-resource exception to packages.pojo
 //       repository:
-//         package: com.acme.catalog.persistence   # same "package" key on any of the 5 layers
+//         package: com.acme.catalog.persistence   # same "package" key on any layer
+//       unitTest:
+//         package: com.acme.catalog.service   # unitTest/integrationTest have NO packages.*
+//                                              # global default - absent here, they default to
+//                                              # this resource's own resolved service/controller
+//                                              # package, not a fixed value (see GeneratedLayer)
 //   routing:
 //     basePathPrefix: /v1   # optional, default "" (no opinion, e.g. no forced "/api")
 //   exceptionHandler:
@@ -62,7 +67,15 @@ public final class AllcrudGeneratorYamlConfig {
             Set.of("pojoNamingStyle", "packages", "defaults", "resources", "routing", "exceptionHandler");
     private static final Set<String> DEFAULTS_ALLOWED_KEYS = Set.of("generate", "pojo");
     private static final Set<String> RESOURCE_ALLOWED_KEYS =
-            Set.of("generate", "pojo", "repository", "converter", "service", "controller", "basePath");
+            Set.of("generate", "pojo", "repository", "converter", "service", "controller",
+                    "unitTest", "integrationTest", "basePath");
+    // The 5 layers "packages:" (global) may/must set a package for - UNIT_TEST/INTEGRATION_TEST
+    // are deliberately excluded (see GeneratedLayer's javadoc and GenerationRequest#packages):
+    // their default is computed dynamically per resource, never a fixed global value, so there's
+    // nothing for a global "packages.unitTest" entry to mean.
+    private static final List<GeneratedLayer> GLOBAL_PACKAGE_LAYERS = List.of(
+            GeneratedLayer.POJO, GeneratedLayer.REPOSITORY, GeneratedLayer.CONVERTER,
+            GeneratedLayer.SERVICE, GeneratedLayer.CONTROLLER);
     private static final Set<String> POJO_NODE_ALLOWED_KEYS = Set.of("onRegenerate", "package");
     private static final Set<String> LAYER_PACKAGE_NODE_ALLOWED_KEYS = Set.of("package");
     private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
@@ -108,9 +121,9 @@ public final class AllcrudGeneratorYamlConfig {
         return parse(root, ymlPath);
     }
 
-    public GenerationRequest toGenerationRequest(Path specPath, Path sourceRoot) {
+    public GenerationRequest toGenerationRequest(Path specPath, Path sourceRoot, Path testSourceRoot) {
         return new GenerationRequest(
-                specPath, sourceRoot, pojoNamingStyle, defaultLayersToGenerate, packages,
+                specPath, sourceRoot, testSourceRoot, pojoNamingStyle, defaultLayersToGenerate, packages,
                 defaultPojoOnRegenerate, resourceOverrides, basePathPrefix, exceptionHandler);
     }
 
@@ -248,8 +261,8 @@ public final class AllcrudGeneratorYamlConfig {
                 "packages", ymlPath);
 
         Map<GeneratedLayer, String> packages = new LinkedHashMap<>();
-        for (GeneratedLayer layer : GeneratedLayer.values()) {
-            String key = layer.name().toLowerCase(Locale.ROOT);
+        for (GeneratedLayer layer : GLOBAL_PACKAGE_LAYERS) {
+            String key = layer.yamlKey();
             Object value = packagesNode.get(key);
             if (value == null) {
                 throw configError("packages", ymlPath, "missing required entry \"" + key + "\"");
@@ -258,8 +271,8 @@ public final class AllcrudGeneratorYamlConfig {
         }
 
         Set<String> unknownKeys = new LinkedHashSet<>(packagesNode.keySet());
-        for (GeneratedLayer layer : GeneratedLayer.values()) {
-            unknownKeys.remove(layer.name().toLowerCase(Locale.ROOT));
+        for (GeneratedLayer layer : GLOBAL_PACKAGE_LAYERS) {
+            unknownKeys.remove(layer.yamlKey());
         }
         if (!unknownKeys.isEmpty()) {
             throw configError("packages", ymlPath, "unknown key(s): " + unknownKeys);
@@ -280,13 +293,17 @@ public final class AllcrudGeneratorYamlConfig {
         return layers;
     }
 
-    // The 5 layers aren't actually independent: apiController.mustache hardcodes a
+    // The layers aren't actually independent: apiController.mustache hardcodes a
     // constructor dependency on the generated Service and Converter classes, and
     // service.mustache hardcodes one on Repository - CONTROLLER can never compile without
     // SERVICE+CONVERTER, and SERVICE can never compile without REPOSITORY. Caught this for
     // real via a "generate: [pojo, controller]" test fixture that failed compileJava, not a
-    // hypothetical. POJO has no such coupling. Validated eagerly here (at yml load time, one
-    // clear message) rather than left to surface as a confusing downstream javac error.
+    // hypothetical. POJO has no such coupling. Same reasoning extends to the two test layers:
+    // integrationTest.mustache hardcodes a constructor dependency on the generated Controller
+    // class (INTEGRATION_TEST requires CONTROLLER, which itself cascades to SERVICE+CONVERTER),
+    // unitTest.mustache hardcodes one on Service (UNIT_TEST requires SERVICE, which cascades to
+    // REPOSITORY). Validated eagerly here (at yml load time, one clear message) rather than
+    // left to surface as a confusing downstream javac error.
     private static void validateLayerDependencies(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.CONTROLLER)) {
             List<GeneratedLayer> missing = new java.util.ArrayList<>();
@@ -306,6 +323,14 @@ public final class AllcrudGeneratorYamlConfig {
             throw configError(location, ymlPath,
                     "SERVICE requires REPOSITORY to also be generated (missing: repository for this resource)");
         }
+        if (layers.contains(GeneratedLayer.INTEGRATION_TEST) && !layers.contains(GeneratedLayer.CONTROLLER)) {
+            throw configError(location, ymlPath,
+                    "INTEGRATION_TEST requires CONTROLLER to also be generated (missing: controller for this resource)");
+        }
+        if (layers.contains(GeneratedLayer.UNIT_TEST) && !layers.contains(GeneratedLayer.SERVICE)) {
+            throw configError(location, ymlPath,
+                    "UNIT_TEST requires SERVICE to also be generated (missing: service for this resource)");
+        }
     }
 
     private static String joinLayerNames(List<GeneratedLayer> layers) {
@@ -314,25 +339,33 @@ public final class AllcrudGeneratorYamlConfig {
             if (i > 0) {
                 sb.append(" and ");
             }
-            sb.append(layers.get(i).name().toLowerCase(Locale.ROOT));
+            sb.append(layers.get(i).yamlKey());
         }
         return sb.toString();
     }
 
     private static GeneratedLayer parseLayerName(String name, String location, Path ymlPath) {
         for (GeneratedLayer layer : GeneratedLayer.values()) {
-            if (layer.name().equalsIgnoreCase(name)) {
+            if (layer.yamlKey().equalsIgnoreCase(name)) {
                 return layer;
             }
         }
-        throw configError(location, ymlPath, "unknown layer \"" + name + "\" - expected one of "
-                + "pojo, repository, converter, service, controller");
+        StringBuilder expected = new StringBuilder();
+        for (GeneratedLayer layer : GeneratedLayer.values()) {
+            if (expected.length() > 0) {
+                expected.append(", ");
+            }
+            expected.append(layer.yamlKey());
+        }
+        throw configError(location, ymlPath, "unknown layer \"" + name + "\" - expected one of " + expected);
     }
 
-    // resources.<name>.<layer>.package for all 5 layers (pojo included, alongside its existing
+    // resources.<name>.<layer>.package for every layer (pojo included, alongside its existing
     // onRegenerate) - a layer node absent, or present without "package", contributes no entry
-    // (inherits GenerationRequest#packages' global entry for that layer instead). "pojo" reuses
-    // its existing node (already validated/read for onRegenerate by parsePojoOnRegenerate above)
+    // (inherits the layer's default instead: GenerationRequest#packages' global entry for the 5
+    // production layers, or the sibling layer's own resolved package for UNIT_TEST/
+    // INTEGRATION_TEST - see AllcrudGenerator#resolveEffectivePackage). "pojo" reuses its
+    // existing node (already validated/read for onRegenerate by parsePojoOnRegenerate above)
     // rather than requiring a second nested block for the same yml key.
     private static Map<GeneratedLayer, String> parseResourcePackageOverrides(
             Map<String, Object> resourceNode, String location, Path ymlPath) {
@@ -350,7 +383,7 @@ public final class AllcrudGeneratorYamlConfig {
             if (layer == GeneratedLayer.POJO) {
                 continue;
             }
-            String key = layer.name().toLowerCase(Locale.ROOT);
+            String key = layer.yamlKey();
             if (!resourceNode.containsKey(key)) {
                 continue;
             }

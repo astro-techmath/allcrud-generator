@@ -19,6 +19,11 @@ public class AllcrudGeneratorPlugin implements Plugin<Project> {
         // so the default must survive clean/CI. This is also now the Java source root
         // directly (see javaSourceDir below), not an openapi-generator scratch output.
         extension.getOutputDir().convention(project.getLayout().getProjectDirectory().dir("src/main/java"));
+        // Fixed, not configurable to be anywhere else in spirit (GenerationRequest#testSourceRoot
+        // is a distinct field from sourceRoot, never merged) - only the DEFAULT is a convention
+        // here, same as outputDir's, for consistency with how every other directory in this
+        // plugin is wired; nothing downstream lets a caller point testOutputDir at outputDir.
+        extension.getTestOutputDir().convention(project.getLayout().getProjectDirectory().dir("src/test/java"));
         // allcrud-generator.yml at the project root - same convention as checkstyle.xml,
         // detekt.yml etc: build/tooling config, not a packaged runtime resource.
         extension.getConfigFile().convention(project.getLayout().getProjectDirectory().file("allcrud-generator.yml"));
@@ -35,15 +40,20 @@ public class AllcrudGeneratorPlugin implements Plugin<Project> {
             // Java source root files land under directly - openapi-generator's own nested
             // src/main/java output layout only existed in the pre-staging design.
             task.getJavaSourceDir().convention(extension.getOutputDir());
+            task.getTestOutputDir().convention(extension.getTestOutputDir());
+            task.getJavaTestSourceDir().convention(extension.getTestOutputDir());
         });
 
         // Wiring the source set to the task's own output property (not a detached
         // provider) is what lets Gradle infer the compileJava -> generateAllcrud task
-        // dependency automatically - no explicit dependsOn needed.
+        // dependency automatically - no explicit dependsOn needed. Same for compileTestJava via
+        // the "test" source set below.
         project.getPluginManager().withPlugin("java", appliedPlugin -> {
             JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             javaExtension.getSourceSets().getByName("main").getJava()
                     .srcDir(generateTask.flatMap(AllcrudGenerateTask::getJavaSourceDir));
+            javaExtension.getSourceSets().getByName("test").getJava()
+                    .srcDir(generateTask.flatMap(AllcrudGenerateTask::getJavaTestSourceDir));
         });
     }
 

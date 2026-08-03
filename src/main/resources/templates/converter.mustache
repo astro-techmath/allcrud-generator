@@ -18,15 +18,22 @@
     layers can live in a different package (allcrud-generator.yml's "packages" section).
     Generated class name is prefixed with allcrudEntityName ("Product"), not the stock
     per-tag classname variable ("ProductsApi", plural, "Api"-suffixed) - that mismatch was
-    a naming bug fixed after the fact, not an intentional customization. }}
+    a naming bug fixed after the fact, not an intentional customization.
+    @Component: without a stereotype annotation this class is never registered as a Spring
+    bean at all - same defect as service.mustache's missing @Service, found the same way (a
+    real Spring context, not just a compile check). Spring has no more specific stereotype for
+    "converter" than the generic @Component - @Service/@Repository/@Controller are all
+    semantically wrong for this role. }}
 package {{package}};
 
 import com.techmath.allcrud.converter.Converter;
 import {{allcrudEntityPackage}}.{{allcrudEntityName}};
 import {{allcrudPojoPackage}}.{{allcrudPojoClassName}};
+import org.springframework.stereotype.Component;
 
 {{>generatedAnnotation}}
 {{#operations}}
+@Component
 public class {{allcrudEntityName}}Converter implements Converter<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> {
 
     @Override

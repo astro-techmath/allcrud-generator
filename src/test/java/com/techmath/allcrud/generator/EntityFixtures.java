@@ -26,6 +26,14 @@ final class EntityFixtures {
     private EntityFixtures() {
     }
 
+    // Shared by tests that construct GenerationRequest directly and don't request UNIT_TEST/
+    // INTEGRATION_TEST - a fresh, never-written-to temp dir each call, distinct from the test's
+    // real sourceRoot so a bug that accidentally routed a test-layer file under sourceRoot
+    // instead of testSourceRoot would be visible rather than silently masked by reuse.
+    static Path unusedTestSourceRoot() throws IOException {
+        return Files.createTempDirectory("allcrud-unused-test-source-root");
+    }
+
     static void copyInto(Path sourceRoot, String... entityNames) throws IOException {
         Path entityDir = sourceRoot.resolve("org/openapitools/entity");
         Files.createDirectories(entityDir);

@@ -29,7 +29,7 @@ class AllcrudGeneratorYamlConfigCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(FIXTURE_YML);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         // Product has no "generate" override in the fixture yml - inherits defaults.generate,
         // all 5 layers.
@@ -62,7 +62,7 @@ class AllcrudGeneratorYamlConfigCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(FIXTURE_YML);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         assertNotEquals(productSentinel, Files.readString(productVo),
                 "Product's pojo.onRegenerate: overwrite must replace the existing file");

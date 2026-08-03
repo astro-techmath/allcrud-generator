@@ -55,7 +55,7 @@ class PojoNamingStyleSwitchCompatTest {
     private void assertPojoNamingStyle(PojoNamingStyle namingStyle, String expectedClassSimpleName, String expectedInterface) throws Exception {
         String outputDir = "build/generated/test-pojo-naming-style-" + namingStyle.name().toLowerCase(Locale.ROOT);
         EntityFixtures.copyInto(Path.of(outputDir), "Product", "Order");
-        AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), namingStyle,
+        AllcrudGenerator.generate(new GenerationRequest(SPEC, Path.of(outputDir), EntityFixtures.unusedTestSourceRoot(), namingStyle,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",

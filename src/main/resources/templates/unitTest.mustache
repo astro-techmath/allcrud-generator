@@ -1,0 +1,59 @@
+{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
+    file - the stock "spring" generator has no unit-test template at all. Registered as a
+    per-tag "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver
+    code (see AllcrudGenerator), with output suffix "ServiceTest.java".
+
+    Extends the core's CrudServiceTests base (com.techmath.allcrud.service, confirmed via
+    javap against the allcrud test-fixtures jar, not guessed) - a Mockito-only test, no Spring
+    context: the base only needs entityClass/idClass in its constructor and two abstract
+    accessors (getRepository/getService) to drive its own suite of @Test methods. The base
+    class itself carries no class-level annotations (also confirmed via javap), so
+    @ExtendWith(MockitoExtension.class) has to be declared here, not inherited.
+
+    allcrudEntityName / allcrudIdType / allcrudEntityPackage / allcrudRepositoryPackage /
+    allcrudServicePackage are resolved per-resource by AllcrudSpringCodegen - see that class.
+    UNIT_TEST has no allcrudUnitTestPackage of its own to resolve for cross-file imports:
+    nothing else ever imports "the unit test" class, unlike Service/Repository which this
+    template itself imports. This is a per-resource artifact placed under
+    GenerationRequest#testSourceRoot (never sourceRoot), always "generate once, never
+    overwrite" - no onRegenerate knob, same as Service/Repository/Converter/Controller. }}
+package {{package}};
+
+import {{allcrudEntityPackage}}.{{allcrudEntityName}};
+import {{allcrudRepositoryPackage}}.{{allcrudEntityName}}Repository;
+import {{allcrudServicePackage}}.{{allcrudEntityName}}Service;
+import com.techmath.allcrud.repository.EntityRepository;
+import com.techmath.allcrud.service.CrudService;
+import com.techmath.allcrud.service.CrudServiceTests;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+{{>generatedAnnotation}}
+{{#operations}}
+@ExtendWith(MockitoExtension.class)
+public class {{allcrudEntityName}}ServiceTest extends CrudServiceTests<{{allcrudEntityName}}, {{allcrudIdType}}> {
+
+    @Mock
+    private {{allcrudEntityName}}Repository repository;
+
+    @InjectMocks
+    private {{allcrudEntityName}}Service service;
+
+    public {{allcrudEntityName}}ServiceTest() {
+        super({{allcrudEntityName}}.class, {{allcrudIdType}}.class);
+    }
+
+    @Override
+    protected EntityRepository<{{allcrudEntityName}}, {{allcrudIdType}}> getRepository() {
+        return repository;
+    }
+
+    @Override
+    protected CrudService<{{allcrudEntityName}}, {{allcrudIdType}}> getService() {
+        return service;
+    }
+
+}
+{{/operations}}

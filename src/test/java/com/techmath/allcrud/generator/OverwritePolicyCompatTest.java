@@ -30,7 +30,7 @@ class OverwritePolicyCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, sourceRoot, PojoNamingStyle.VO,
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
@@ -50,7 +50,7 @@ class OverwritePolicyCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, sourceRoot, PojoNamingStyle.VO,
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
@@ -74,7 +74,7 @@ class OverwritePolicyCompatTest {
         // OnRegenerate.OVERWRITE only governs POJO - Controller has no knob and must never be
         // touched, regardless of this value.
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, sourceRoot, PojoNamingStyle.VO,
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",

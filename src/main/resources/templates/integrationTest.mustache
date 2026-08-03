@@ -1,0 +1,71 @@
+{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
+    file - the stock "spring" generator has no integration-test template at all. Registered as
+    a per-tag "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver
+    code (see AllcrudGenerator), with output suffix "ControllerIT.java".
+
+    Extends the core's CrudControllerIntegrationTests base (com.techmath.allcrud.controller,
+    confirmed via javap against the allcrud test-fixtures jar, not guessed) - uses its 3-arg
+    constructor (Class VO, Class ID, Class controller), which resolves the base path
+    automatically via reflection over the controller's @RequestMapping - no config needed here
+    for that. The base class' mockMvc field is already @Autowired there, and its
+    configureDataSource method (static, @DynamicPropertySource) is inherited and picked up
+    automatically by Spring's TestContext framework once this subclass IS a genuine Spring
+    test - but the base carries no class-level @SpringBootTest/@AutoConfigureMockMvc (also
+    confirmed via javap), so both have to be declared here.
+
+    allcrudEntityName / allcrudIdType / allcrudEntityPackage / allcrudPojoPackage /
+    allcrudPojoClassName / allcrudRepositoryPackage / allcrudConverterPackage /
+    allcrudControllerPackage are resolved per-resource by AllcrudSpringCodegen - see that class.
+    INTEGRATION_TEST has no allcrudIntegrationTestPackage of its own to resolve for cross-file
+    imports: nothing else ever imports "the integration test" class. This is a per-resource
+    artifact placed under GenerationRequest#testSourceRoot (never sourceRoot), always "generate
+    once, never overwrite" - no onRegenerate knob, same as every non-POJO layer.
+
+    Depends at RUNTIME (not generation time) on the global exception handler
+    (ExceptionHandlerConfig) being present in the Spring context for HTTP status codes to match
+    what this base class' @Test methods expect (EntityNotFoundException -> 404, etc) - this is
+    not validated by the generator, it's a documentation note for whoever wires this project up:
+    if exceptionHandler.generate is false, these tests will fail against real behavior, not
+    against a generator bug. }}
+package {{package}};
+
+import {{allcrudEntityPackage}}.{{allcrudEntityName}};
+import {{allcrudPojoPackage}}.{{allcrudPojoClassName}};
+import {{allcrudRepositoryPackage}}.{{allcrudEntityName}}Repository;
+import {{allcrudConverterPackage}}.{{allcrudEntityName}}Converter;
+import {{allcrudControllerPackage}}.{{allcrudEntityName}}Controller;
+import com.techmath.allcrud.controller.CrudControllerIntegrationTests;
+import com.techmath.allcrud.converter.Converter;
+import com.techmath.allcrud.repository.EntityRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+
+{{>generatedAnnotation}}
+{{#operations}}
+@SpringBootTest
+@AutoConfigureMockMvc
+public class {{allcrudEntityName}}ControllerIT extends CrudControllerIntegrationTests<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> {
+
+    @Autowired
+    private {{allcrudEntityName}}Repository repository;
+
+    @Autowired
+    private {{allcrudEntityName}}Converter converter;
+
+    public {{allcrudEntityName}}ControllerIT() {
+        super({{allcrudPojoClassName}}.class, {{allcrudIdType}}.class, {{allcrudEntityName}}Controller.class);
+    }
+
+    @Override
+    protected EntityRepository<{{allcrudEntityName}}, {{allcrudIdType}}> getRepository() {
+        return repository;
+    }
+
+    @Override
+    protected Converter<{{allcrudEntityName}}, {{allcrudPojoClassName}}, {{allcrudIdType}}> getConverter() {
+        return converter;
+    }
+
+}
+{{/operations}}

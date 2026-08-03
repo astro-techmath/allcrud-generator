@@ -25,7 +25,7 @@ class BasePathCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, sourceRoot, PojoNamingStyle.VO,
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.CONTROLLER),
                 Map.of(GeneratedLayer.CONTROLLER, "org.openapitools.api"),
                 OnRegenerate.PRESERVE, Map.of(), "/v1", EntityFixtures.NO_EXCEPTION_HANDLER));
@@ -41,7 +41,7 @@ class BasePathCompatTest {
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, sourceRoot, PojoNamingStyle.VO,
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.CONTROLLER),
                 Map.of(GeneratedLayer.CONTROLLER, "org.openapitools.api"),
                 OnRegenerate.PRESERVE,

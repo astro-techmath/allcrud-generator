@@ -204,16 +204,19 @@ public final class AllcrudGenerator {
         }
     }
 
-    // layer name (GeneratedLayer#name(), e.g. "SERVICE") -> global package - only the 4 layers
+    // layer name (GeneratedLayer#name(), e.g. "SERVICE") -> global package - only the 5 layers
     // AllcrudSpringCodegen resolves per-resource need to travel this way (see the comment above
-    // this method's call site); CONTROLLER is deliberately excluded, nothing ever imports "the
-    // Controller" from another layer, so it has no per-resource resolution to feed.
+    // this method's call site). CONTROLLER used to be excluded here ("nothing imports the
+    // Controller from another layer") - integrationTest.mustache broke that assumption, so it's
+    // included now too. UNIT_TEST/INTEGRATION_TEST themselves are never in this map: nothing
+    // ever imports "the unit/integration test" class from elsewhere.
     private static Map<String, String> layerPackages(GenerationRequest request) {
         Map<String, String> byLayerName = new LinkedHashMap<>();
         byLayerName.put(GeneratedLayer.POJO.name(), request.packages().get(GeneratedLayer.POJO));
         byLayerName.put(GeneratedLayer.REPOSITORY.name(), request.packages().get(GeneratedLayer.REPOSITORY));
         byLayerName.put(GeneratedLayer.CONVERTER.name(), request.packages().get(GeneratedLayer.CONVERTER));
         byLayerName.put(GeneratedLayer.SERVICE.name(), request.packages().get(GeneratedLayer.SERVICE));
+        byLayerName.put(GeneratedLayer.CONTROLLER.name(), request.packages().get(GeneratedLayer.CONTROLLER));
         return byLayerName;
     }
 
@@ -260,6 +263,33 @@ public final class AllcrudGenerator {
         }
     }
 
+    // UNIT_TEST/INTEGRATION_TEST have no "packages.<layer>" global entry to fall back to (see
+    // GeneratedLayer's javadoc) - their default is the SIBLING production layer's own resolved
+    // package for this exact resource (SERVICE for UNIT_TEST, CONTROLLER for INTEGRATION_TEST),
+    // itself computed by the same override-then-global rule, recursively - not a flat
+    // "packages.service" global lookup, since the sibling layer might ALSO have a per-resource
+    // override for this resource that should be honored first.
+    private static String resolveEffectivePackage(GeneratedLayer layer, String resourceName, GenerationRequest request) {
+        ResourceOverride override = request.resourceOverrides().get(resourceName);
+        String explicit = override != null && override.packageOverrides() != null
+                ? override.packageOverrides().get(layer)
+                : null;
+        if (explicit != null) {
+            return explicit;
+        }
+        if (layer == GeneratedLayer.UNIT_TEST) {
+            return resolveEffectivePackage(GeneratedLayer.SERVICE, resourceName, request);
+        }
+        if (layer == GeneratedLayer.INTEGRATION_TEST) {
+            return resolveEffectivePackage(GeneratedLayer.CONTROLLER, resourceName, request);
+        }
+        return request.packages().get(layer);
+    }
+
+    private static boolean isTestLayer(GeneratedLayer layer) {
+        return layer == GeneratedLayer.UNIT_TEST || layer == GeneratedLayer.INTEGRATION_TEST;
+    }
+
     private static void relocateOne(Path source, GenerationRequest request) {
         String fileName = source.getFileName().toString();
         StagedFile staged = classify(fileName, request.pojoNamingStyle());
@@ -274,16 +304,14 @@ public final class AllcrudGenerator {
             return;
         }
 
-        String overridePackage = override != null && override.packageOverrides() != null
-                ? override.packageOverrides().get(layer)
-                : null;
-        String targetPackage = overridePackage != null ? overridePackage : request.packages().get(layer);
+        String targetPackage = resolveEffectivePackage(layer, staged.resourceName(), request);
         if (targetPackage == null) {
             throw new IllegalStateException(
                     "No target package configured for layer " + layer + " (file " + fileName + ")");
         }
 
-        Path target = request.sourceRoot()
+        Path baseDir = isTestLayer(layer) ? request.testSourceRoot() : request.sourceRoot();
+        Path target = baseDir
                 .resolve(targetPackage.replace('.', '/'))
                 .resolve(fileName);
 
@@ -329,22 +357,38 @@ public final class AllcrudGenerator {
     // Suffix-based classification of our own template output filenames (ProductVO.java,
     // ProductController.java, etc) into (resourceName, layer) - resourceName is the suffix
     // stripped ("Product"), needed to resolve GenerationRequest#resourceOverrides. Order
-    // doesn't matter - the 5 suffixes are mutually exclusive by construction (see
-    // apiController/converter/pojo/repository/service.mustache output filenames). Throws on
-    // anything else: with supporting files disabled, every staged file is expected to match
-    // one of these - an unrecognized file means either a template was added without updating
-    // this classifier, or a stale assumption, and failing loudly beats silently misplacing
-    // (or losing) a file.
+    // doesn't matter - the suffixes are mutually exclusive by construction (verified by hand,
+    // not just assumed: e.g. "ProductServiceTest" does NOT end with "Service" - its last 7
+    // characters are "iceTest" - and "ProductControllerIT" does NOT end with "Controller" - its
+    // last 10 characters are "ntrollerIT"; see apiController/converter/pojo/repository/service/
+    // unitTest/integrationTest.mustache output filenames). Throws on anything else: with
+    // supporting files disabled, every staged file is expected to match one of these - an
+    // unrecognized file means either a template was added without updating this classifier, or
+    // a stale assumption, and failing loudly beats silently misplacing (or losing) a file.
     private static StagedFile classify(String fileName, PojoNamingStyle pojoNamingStyle) {
         String simpleName = fileName.endsWith(".java") ? fileName.substring(0, fileName.length() - 5) : fileName;
         for (GeneratedLayer layer : GeneratedLayer.values()) {
-            String suffix = layer == GeneratedLayer.POJO ? pojoNamingStyle.name() : capitalize(layer.name());
+            String suffix = layerSuffix(layer, pojoNamingStyle);
             if (simpleName.endsWith(suffix)) {
                 String resourceName = simpleName.substring(0, simpleName.length() - suffix.length());
                 return new StagedFile(resourceName, layer);
             }
         }
         throw new IllegalStateException("Unrecognized generated file, no known layer suffix matched: " + fileName);
+    }
+
+    // Generated Java class name / filename suffix per layer - NOT mechanically derived from the
+    // enum constant name (capitalize(layer.name())) for UNIT_TEST/INTEGRATION_TEST: those are
+    // multi-word SCREAMING_SNAKE_CASE Java identifiers ("UNIT_TEST"), and capitalize() would
+    // produce "Unit_test", not a valid convention-following Java class name suffix. Must match
+    // the suffix string registered for the corresponding template in registerApiLayerTemplates.
+    private static String layerSuffix(GeneratedLayer layer, PojoNamingStyle pojoNamingStyle) {
+        return switch (layer) {
+            case POJO -> pojoNamingStyle.name();
+            case UNIT_TEST -> "ServiceTest";
+            case INTEGRATION_TEST -> "ControllerIT";
+            default -> capitalize(layer.name());
+        };
     }
 
     private static String capitalize(String enumName) {
@@ -397,6 +441,10 @@ public final class AllcrudGenerator {
         clientOptInput.getConfig().apiTemplateFiles().put("service.mustache", "Service.java");
         clientOptInput.getConfig().apiTemplateFiles().put("repository.mustache", "Repository.java");
         clientOptInput.getConfig().apiTemplateFiles().put("converter.mustache", "Converter.java");
+        // Output suffix must match layerSuffix(UNIT_TEST, ...) above.
+        clientOptInput.getConfig().apiTemplateFiles().put("unitTest.mustache", "ServiceTest.java");
+        // Output suffix must match layerSuffix(INTEGRATION_TEST, ...) above.
+        clientOptInput.getConfig().apiTemplateFiles().put("integrationTest.mustache", "ControllerIT.java");
     }
 
 }

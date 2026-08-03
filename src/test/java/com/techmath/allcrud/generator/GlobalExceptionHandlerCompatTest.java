@@ -50,7 +50,7 @@ class GlobalExceptionHandlerCompatTest {
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         Path handler = sourceRoot.resolve("org/openapitools/api/GlobalExceptionHandler.java");
         assertTrue(Files.exists(handler), "Expected GlobalExceptionHandler.java at the packages.controller fallback");
@@ -85,7 +85,7 @@ class GlobalExceptionHandlerCompatTest {
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         Path handler = sourceRoot.resolve("com/acme/errors/ApiExceptionHandler.java");
         assertTrue(Files.exists(handler), "Expected ApiExceptionHandler.java under the explicit package");
@@ -121,7 +121,7 @@ class GlobalExceptionHandlerCompatTest {
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         assertFalse(Files.exists(sourceRoot.resolve("org/openapitools/api/GlobalExceptionHandler.java")));
         try (var files = Files.walk(sourceRoot)) {
@@ -154,7 +154,7 @@ class GlobalExceptionHandlerCompatTest {
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
-        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot));
+        AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         assertEquals(handWritten, Files.readString(handler),
                 "GlobalExceptionHandler.java must never be overwritten once it exists - no onRegenerate knob");

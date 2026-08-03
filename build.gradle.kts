@@ -57,6 +57,12 @@ dependencies {
     // implementation(project(":")), needlessly dragging in allcrud's runtime-scope Spring
     // starters (unversioned by design - see allcrud's own POM) into plugin resolution.
     testImplementation("$allcrudCoreGroup:$allcrudCoreArtifact:$allcrudCoreVersion")
+    // CrudServiceTests/CrudControllerIntegrationTests (the base classes unitTest.mustache/
+    // integrationTest.mustache extend) live in allcrud's test-fixtures variant, not its main
+    // jar - needed here so generated *ServiceTest/*ControllerIT compat tests (compiled for real
+    // via javax.tools.JavaCompiler, not just reflected on) actually have something to extend.
+    // Confirmed via javap against the fixtures jar directly, not assumed.
+    testImplementation(testFixtures("$allcrudCoreGroup:$allcrudCoreArtifact:$allcrudCoreVersion"))
     testImplementation("org.junit.jupiter:junit-jupiter:$junitVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

@@ -55,7 +55,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // allcrud-generator.yml either - rejected: doesn't support entities living in different
     // packages per module/domain, e.g. com.acme.catalog.Product vs com.acme.sales.Order).
     public static final String ALLCRUD_SOURCE_ROOT = "allcrudSourceRoot";
-    // Target packages the templates actually read for the other 4 layers - NEVER set as
+    // Target packages the templates actually read for the other 5 layers - NEVER set as
     // additionalProperties directly (unlike allcrudEntityName/allcrudBasePath's siblings,
     // that's the point): only ever objs.put() per-resource below, in
     // postProcessOperationsWithModels. Setting these as additionalProperties was tried first and
@@ -69,6 +69,10 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     public static final String ALLCRUD_REPOSITORY_PACKAGE = "allcrudRepositoryPackage";
     public static final String ALLCRUD_CONVERTER_PACKAGE = "allcrudConverterPackage";
     public static final String ALLCRUD_SERVICE_PACKAGE = "allcrudServicePackage";
+    // Added for integrationTest.mustache, which imports the generated Controller class - until
+    // now nothing else ever imported "the Controller" from another layer, so this was
+    // deliberately left out (see the old comment on AllcrudGenerator#layerPackages, now stale).
+    public static final String ALLCRUD_CONTROLLER_PACKAGE = "allcrudControllerPackage";
     // layer name -> global package (AllcrudGenerator#layerPackages) - safe to set as a plain
     // additionalProperty (unlike the 4 above) because no template reads "allcrudLayerPackages"
     // directly; only resolvePackage below does, as the fallback when a resource has no override.
@@ -272,6 +276,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             objs.put(ALLCRUD_REPOSITORY_PACKAGE, resolvePackage(resourceModel.schemaName, "REPOSITORY"));
             objs.put(ALLCRUD_CONVERTER_PACKAGE, resolvePackage(resourceModel.schemaName, "CONVERTER"));
             objs.put(ALLCRUD_SERVICE_PACKAGE, resolvePackage(resourceModel.schemaName, "SERVICE"));
+            objs.put(ALLCRUD_CONTROLLER_PACKAGE, resolvePackage(resourceModel.schemaName, "CONTROLLER"));
             entityNameByApiName.put(operations.getClassname(), resourceModel.schemaName);
             break;
         }

@@ -19,4 +19,11 @@ public abstract class AllcrudGeneratorExtension {
 
     public abstract DirectoryProperty getOutputDir();
 
+    // Where UNIT_TEST/INTEGRATION_TEST land - a distinct root from getOutputDir(), never
+    // configurable to be the same directory or anywhere else (GenerationRequest#testSourceRoot
+    // is a fixed, separate field - see AllcrudGenerator). Convention default mirrors
+    // getOutputDir()'s own default (src/main/java), just under src/test/java instead - same
+    // "default must survive clean/CI, not a build/generated/... scratch path" reasoning.
+    public abstract DirectoryProperty getTestOutputDir();
+
 }

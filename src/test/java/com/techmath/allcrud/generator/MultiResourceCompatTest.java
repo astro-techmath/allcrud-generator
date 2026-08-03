@@ -140,7 +140,7 @@ class MultiResourceCompatTest {
 
         // Single generate() call for both resources - the whole point of this test.
         AllcrudGenerator.generate(new GenerationRequest(
-                SPEC, Path.of(GENERATED_SOURCE_DIR), PojoNamingStyle.VO,
+                SPEC, Path.of(GENERATED_SOURCE_DIR), EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.values()),
                 Map.of(
                         GeneratedLayer.POJO, "org.openapitools.model",
