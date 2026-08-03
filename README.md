@@ -245,7 +245,7 @@ Notes:
 |---|---|---|---|---|
 | `pojoNamingStyle` | Global naming style for the generated POJO class (`ProductVO` vs `ProductDTO`). No per-resource override. | `VO`, `DTO` | - | **Yes** |
 | `routing.basePathPrefix` | Prefix prepended to every resource's `@RequestMapping` path, unless overridden by `resources.<name>.basePath`. | Any string, e.g. `/v1` | `""` (no prefix) | No |
-| `exceptionHandler.generate` | Whether to generate the project-wide `GlobalExceptionHandler` stub. | `true`, `false` | `true` | No |
+| `exceptionHandler.enabled` | Whether to generate the project-wide `GlobalExceptionHandler` stub. | `true`, `false` | `true` | No |
 | `exceptionHandler.package` | Target package for the generated exception handler. | Any Java package | `generation.controller.package`'s value | No (required only if `generation.controller.package` is ever left unset too) |
 | `exceptionHandler.className` | Class name for the generated exception handler. | Any valid Java class name | `GlobalExceptionHandler` | No |
 
@@ -278,7 +278,7 @@ routing:
   basePathPrefix: /v1
 
 exceptionHandler:
-  generate: true
+  enabled: true
   package: com.acme.web
   className: GlobalExceptionHandler
 
@@ -375,7 +375,7 @@ The reasoning behind some of the choices above, for when the "what" isn't enough
 
 - ✅ **`generation.<layer>.package` is global by default, with a per-resource override as the escape hatch.** A project with hundreds of resources declaring the same 5 package paths hundreds of times over would be pure noise - the global default covers the common case, and `resources.<name>.<layer>.package` exists for the resources that genuinely need to live somewhere else.
 - ✅ **Each of the 7 layers toggles independently via its own `enabled` flag, at both the global and per-resource level, instead of a single list a resource replaces wholesale.** A per-resource layer list that either fully replaced or fully inherited the global set couldn't express "disable just this one layer for this one resource" without repeating every other layer's name back verbatim - independent per-layer flags can.
-- ✅ **`exceptionHandler` is the only artifact that defaults to `generate: true`** (every other artifact defaults to not generating until asked). It corrects a functional gap the generated Controller already implies: without a `GlobalExceptionHandler` registered, Spring's default exception handling returns the wrong HTTP status for exceptions `AbstractGlobalExceptionHandler` already maps (`EntityNotFoundException` → 500 instead of 404, for example) - a status code mismatch that exists regardless of whether you asked for exception handling.
+- ✅ **`exceptionHandler` is the only artifact that defaults to `enabled: true`** (every other artifact defaults to not generating until asked). It corrects a functional gap the generated Controller already implies: without a `GlobalExceptionHandler` registered, Spring's default exception handling returns the wrong HTTP status for exceptions `AbstractGlobalExceptionHandler` already maps (`EntityNotFoundException` → 500 instead of 404, for example) - a status code mismatch that exists regardless of whether you asked for exception handling.
 - ✅ **The Entity is never generated.** Its persistence mapping, inheritance, and auditing concerns belong to the consumer's domain model - the generator's job stops at the boundary the OpenAPI contract actually describes.
 - ✅ **`x-allcrud-auto-resource` defaults to `false`.** The generator has been marking resources by explicit `x-allcrud-resource: true` since before inference existed - defaulting inference to on would silently change what an existing, unmodified spec generates. Turning it on is always an explicit choice.
 

@@ -181,7 +181,7 @@ public final class AllcrudGenerator {
     // model.
     private static void generateGlobalExceptionHandler(GenerationRequest request) {
         ExceptionHandlerConfig config = request.exceptionHandler();
-        if (!config.generate()) {
+        if (!config.enabled()) {
             return;
         }
 

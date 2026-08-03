@@ -113,7 +113,7 @@ class GlobalExceptionHandlerCompatTest {
     }
 
     @Test
-    void generateFalseProducesNoFileAnywhere() throws Exception {
+    void disabledProducesNoFileAnywhere() throws Exception {
         Path sourceRoot = Files.createTempDirectory("allcrud-exception-handler-disabled");
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
@@ -131,7 +131,7 @@ class GlobalExceptionHandlerCompatTest {
                   controller:
                     enabled: false
                 exceptionHandler:
-                  generate: false
+                  enabled: false
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
@@ -140,7 +140,7 @@ class GlobalExceptionHandlerCompatTest {
         assertFalse(Files.exists(sourceRoot.resolve("org/openapitools/api/GlobalExceptionHandler.java")));
         try (var files = Files.walk(sourceRoot)) {
             assertTrue(files.noneMatch(p -> p.getFileName().toString().equals("GlobalExceptionHandler.java")),
-                    "generate: false must not produce a GlobalExceptionHandler.java anywhere under sourceRoot");
+                    "exceptionHandler.enabled: false must not produce a GlobalExceptionHandler.java anywhere under sourceRoot");
         }
     }
 

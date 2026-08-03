@@ -32,7 +32,7 @@ import java.util.Set;
 //   routing:
 //     basePathPrefix: /v1   # optional, default "" (no opinion, e.g. no forced "/api")
 //   exceptionHandler:
-//     generate: true          # optional, default true (opt-out, unlike every other artifact)
+//     enabled: true            # optional, default true (opt-out, unlike every other artifact)
 //     package: com.acme.web   # optional, falls back to generation.controller.package
 //     className: GlobalExceptionHandler   # optional, this is the default if omitted
 //   generation:
@@ -106,7 +106,7 @@ public final class AllcrudGeneratorYamlConfig {
     private static final Set<String> POJO_LAYER_ALLOWED_KEYS = Set.of("enabled", "package", "onRegenerate");
 
     private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
-    private static final Set<String> EXCEPTION_HANDLER_ALLOWED_KEYS = Set.of("generate", "package", "className");
+    private static final Set<String> EXCEPTION_HANDLER_ALLOWED_KEYS = Set.of("enabled", "package", "className");
     private static final String DEFAULT_EXCEPTION_HANDLER_CLASS_NAME = "GlobalExceptionHandler";
 
     private final PojoNamingStyle pojoNamingStyle;
@@ -345,7 +345,7 @@ public final class AllcrudGeneratorYamlConfig {
         return withBasePath;
     }
 
-    // Absent "exceptionHandler" section entirely -> generate:true (opt-out default, see
+    // Absent "exceptionHandler" section entirely -> enabled:true (opt-out default, see
     // ExceptionHandlerConfig), package falls back to generation.controller.package, className
     // defaults to "GlobalExceptionHandler". generation.controller.package is only mandatory
     // when generation.controller.enabled is true (the default) - if a project has explicitly
@@ -354,7 +354,7 @@ public final class AllcrudGeneratorYamlConfig {
     // a silent null flowing into AllcrudGenerator.
     private static ExceptionHandlerConfig parseExceptionHandlerConfig(
             Map<String, Object> root, Map<GeneratedLayer, String> packages, Path ymlPath) {
-        boolean generate = true;
+        boolean enabled = true;
         String targetPackage = null;
         String className = DEFAULT_EXCEPTION_HANDLER_CLASS_NAME;
 
@@ -363,13 +363,8 @@ public final class AllcrudGeneratorYamlConfig {
             Map<String, Object> exceptionHandlerNode = requireMap(node, "exceptionHandler", ymlPath);
             requireOnlyKeys(exceptionHandlerNode, EXCEPTION_HANDLER_ALLOWED_KEYS, "exceptionHandler", ymlPath);
 
-            Object generateRaw = exceptionHandlerNode.get("generate");
-            if (generateRaw != null) {
-                if (!(generateRaw instanceof Boolean)) {
-                    throw configError("exceptionHandler.generate", ymlPath,
-                            "must be a boolean, found: " + generateRaw);
-                }
-                generate = (Boolean) generateRaw;
+            if (exceptionHandlerNode.containsKey("enabled")) {
+                enabled = requireBoolean(exceptionHandlerNode.get("enabled"), "exceptionHandler.enabled", ymlPath);
             }
 
             Object packageRaw = exceptionHandlerNode.get("package");
@@ -387,15 +382,15 @@ public final class AllcrudGeneratorYamlConfig {
             targetPackage = packages.get(GeneratedLayer.CONTROLLER);
         }
 
-        if (generate && targetPackage == null) {
+        if (enabled && targetPackage == null) {
             throw configError("exceptionHandler", ymlPath,
-                    "generate is true (the default) but no package could be resolved for it - "
+                    "enabled is true (the default) but no package could be resolved for it - "
                             + "either declare \"exceptionHandler.package\" explicitly, or set "
-                            + "\"exceptionHandler.generate: false\" if this project doesn't want a "
+                            + "\"exceptionHandler.enabled: false\" if this project doesn't want a "
                             + "GlobalExceptionHandler generated");
         }
 
-        return new ExceptionHandlerConfig(generate, generate ? targetPackage : null, className);
+        return new ExceptionHandlerConfig(enabled, enabled ? targetPackage : null, className);
     }
 
     // Absent "routing" section entirely -> "" (no opinion, e.g. no forced "/api" prefix) -
