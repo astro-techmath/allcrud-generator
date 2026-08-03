@@ -97,6 +97,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     public static final String ALLCRUD_NEEDS_JAVA_UTIL_IMPORT = "allcrudNeedsJavaUtilImport";
 
     private static final String X_ALLCRUD_ID_TYPE = "x-allcrud-id-type";
+    private static final String X_ALLCRUD_RESOURCE = "x-allcrud-resource";
     private static final String DTO_STYLE = "DTO";
     private static final String VO_STYLE = "VO";
 
@@ -248,13 +249,19 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         OperationMap operations = objs.getOperations();
 
         String idTypeOverride = null;
+        boolean isAllcrudResource = false;
         for (CodegenOperation operation : operations.getOperation()) {
             Object override = operation.vendorExtensions.get(X_ALLCRUD_ID_TYPE);
             if (override != null) {
                 idTypeOverride = override.toString();
-                break;
+            }
+            if (isAllcrudResource(operation)) {
+                isAllcrudResource = true;
             }
         }
+
+        CodegenModel firstResourceModelWithoutId = null;
+        boolean resolved = false;
 
         for (CodegenOperation operation : operations.getOperation()) {
             CodegenModel resourceModel = findResourceModel(operation, modelsByClassname);
@@ -264,9 +271,13 @@ public class AllcrudSpringCodegen extends SpringCodegen {
 
             CodegenProperty idProperty = findIdProperty(resourceModel);
             if (idProperty == null && idTypeOverride == null) {
+                if (firstResourceModelWithoutId == null) {
+                    firstResourceModelWithoutId = resourceModel;
+                }
                 continue;
             }
 
+            resolved = true;
             objs.put(ALLCRUD_ENTITY_NAME, resourceModel.schemaName);
             objs.put(ALLCRUD_POJO_CLASS_NAME, resourceModel.classname);
             objs.put(ALLCRUD_ID_TYPE, idTypeOverride != null ? idTypeOverride : idProperty.dataType);
@@ -281,7 +292,39 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             break;
         }
 
+        // A path marked x-allcrud-resource: true is a hard promise to generate a
+        // CrudController/CrudService/EntityRepository/Converter for it - all four are
+        // generic over an ID type, so a resource with no "id" property (and no
+        // x-allcrud-id-type override) can't be satisfied. Before this check, the loop above
+        // just fell through with objs never populated for this tag: postProcessOperationsWithModels
+        // returned normally, so nothing downstream (relocate(), the templates) ever saw an
+        // error - the templates rendered with allcrudEntityName/allcrudIdType etc. simply
+        // absent, producing syntactically invalid Java (empty generics, "import .;", a
+        // generic "Controller"/"Service"/"Repository"/"Converter" class name collision across
+        // every resource in this situation) that only surfaced much later, in the consumer's
+        // own javac - confirmed empirically, not hypothetical. Failing here, as soon as the
+        // resolution that would need "id" comes up empty, is the earliest point a CodegenModel
+        // (with allVars fully resolved - $ref/allOf/inheritance flattened) exists at all.
+        if (!resolved && isAllcrudResource && firstResourceModelWithoutId != null) {
+            throw new IllegalStateException(
+                    "Resource \"" + firstResourceModelWithoutId.schemaName + "\" is marked "
+                            + "x-allcrud-resource but has no \"id\" property. CrudController requires "
+                            + "an ID type. Add an \"id\" property to the schema, or remove "
+                            + "x-allcrud-resource if this resource shouldn't be generated.");
+        }
+
         return objs;
+    }
+
+    // Path-level vendor extension (x-allcrud-resource) backfilled onto the operation by
+    // fromOperation above - checked here, not assumed true for every tag, because
+    // postProcessOperationsWithModels runs for every tag in the spec regardless of that marker
+    // (nothing upstream filters non-resource paths out of codegen). Without this check, the
+    // no-"id" fail-fast below would wrongly reject any incidental model-with-no-id that happens
+    // to share a tag with unrelated, non-CRUD operations.
+    private boolean isAllcrudResource(CodegenOperation operation) {
+        Object value = operation.vendorExtensions.get(X_ALLCRUD_RESOURCE);
+        return Boolean.TRUE.equals(value) || "true".equalsIgnoreCase(String.valueOf(value));
     }
 
     /**
