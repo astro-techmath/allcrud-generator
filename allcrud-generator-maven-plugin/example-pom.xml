@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Example pom.xml for a project that consumes allcrud-generator-maven-plugin.
+    Copy the relevant parts into your own pom.xml - replace every <version>...</version>
+    placeholder below with the actual version you're pinning to. See the README's
+    "Maven Plugin Reference" and "Prerequisites / Project Setup" sections for the full
+    explanation behind each dependency here.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.6</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.acme</groupId>
+    <artifactId>my-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+
+    <dependencies>
+        <!-- The Allcrud core - the generated code extends/implements its classes.
+             Not added automatically by the plugin, you declare it yourself. -->
+        <dependency>
+            <groupId>io.github.astro-techmath</groupId>
+            <artifactId>allcrud</artifactId>
+            <version>&lt;allcrud-version&gt;</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Only needed if generation.unitTest.enabled: true (allcrud-generator.yml) -
+             CrudServiceTests (what generated *ServiceTest extends) lives in Allcrud's
+             test-fixtures classifier, and instancio-junit is what it uses internally.
+             Both are optional=true in Allcrud's POM - Maven never resolves optional
+             transitive dependencies, so both must be declared here explicitly. -->
+        <dependency>
+            <groupId>io.github.astro-techmath</groupId>
+            <artifactId>allcrud</artifactId>
+            <version>&lt;allcrud-version&gt;</version>
+            <classifier>test-fixtures</classifier>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.instancio</groupId>
+            <artifactId>instancio-junit</artifactId>
+            <version>&lt;instancio-version&gt;</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Only needed if generation.integrationTest.enabled: true (Docker required) -
+             same optional=true story as above: CrudControllerIntegrationTests (what
+             generated *ControllerIT extends) needs real Postgres via Testcontainers. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>io.github.astro-techmath</groupId>
+                <artifactId>allcrud-generator-maven-plugin</artifactId>
+                <version>&lt;allcrud-generator-version&gt;</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <specFile>${project.basedir}/src/main/resources/api-spec.yaml</specFile>
+                            <!-- configFile/outputDir/testOutputDir left at their defaults -
+                                 see the README's Maven Plugin Reference table. -->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Only needed if generation.integrationTest.enabled: true - Surefire's default
+                 "test" phase ignores *IT.java by convention, Failsafe is what actually runs
+                 the generated *ControllerIT classes. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

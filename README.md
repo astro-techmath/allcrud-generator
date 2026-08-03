@@ -52,6 +52,79 @@ Before applying the plugin, your consumer project needs:
 
 - **Docker, if you generate `integrationTest`.** The generated `*ControllerIT` classes extend `CrudControllerIntegrationTests`, which spins up a real PostgreSQL container via Testcontainers. If Docker isn't running when those tests execute, the build fails with a Testcontainers connection error that gives no hint the actual problem is "Docker isn't running." `unitTest` has no such requirement (it mocks the repository).
 
+### Maven equivalent
+
+Everything above applies to a Maven consumer too, plus two Maven-specific gotchas that only show up when `unitTest`/`integrationTest` are enabled - both are a consequence of how Maven resolves dependencies, not a plugin bug:
+
+- **`instancio-junit`, `spring-boot-testcontainers`, and `testcontainers-postgresql` are declared `optional=true` in Allcrud's POM.** Gradle's `testFixtures(...)` notation resolves these transitively via Gradle module metadata, but a plain Maven POM consumer never pulls in `optional` transitive dependencies, regardless of scope - that's how the classic POM format works, not a bug. **You must declare all three explicitly** if you generate `unitTest` and/or `integrationTest`.
+- **Surefire (Maven's default `test` phase) ignores `*IT.java` by convention.** The generated `*ControllerIT` classes need the **Failsafe** plugin's `integration-test`/`verify` goals instead - the standard Maven convention (Surefire = unit tests, Failsafe = integration tests, the `IT` suffix is the trigger).
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>io.github.astro-techmath</groupId>
+        <artifactId>allcrud</artifactId>
+        <version>&lt;version&gt;</version>
+    </dependency>
+
+    <!-- Only needed if you generate unitTest -->
+    <dependency>
+        <groupId>io.github.astro-techmath</groupId>
+        <artifactId>allcrud</artifactId>
+        <version>&lt;version&gt;</version>
+        <classifier>test-fixtures</classifier>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.instancio</groupId>
+        <artifactId>instancio-junit</artifactId>
+        <version>&lt;version&gt;</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Only needed if you generate integrationTest (Docker required) -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-testcontainers</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>postgresql</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <!-- Only needed if you generate integrationTest - runs *ControllerIT,
+             which Surefire's default "test" phase skips by convention. -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+                <execution>
+                    <goals>
+                        <goal>integration-test</goal>
+                        <goal>verify</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+```
+
 ---
 
 ## 📦 Quick Start
@@ -72,6 +145,26 @@ Before applying the plugin, your consumer project needs:
    allcrudGenerator {
        specFile.set(file("src/main/resources/api-spec.yaml"))
    }
+   ```
+
+   **Maven equivalent** - see [Prerequisites](#️-prerequisites--project-setup) for the full dependency list this needs, and the [Maven Plugin Reference](#-maven-plugin-reference) for what each parameter below does:
+
+   ```xml
+   <plugin>
+       <groupId>io.github.astro-techmath</groupId>
+       <artifactId>allcrud-generator-maven-plugin</artifactId>
+       <version>&lt;version&gt;</version>
+       <executions>
+           <execution>
+               <goals>
+                   <goal>generate</goal>
+               </goals>
+               <configuration>
+                   <specFile>${project.basedir}/src/main/resources/api-spec.yaml</specFile>
+               </configuration>
+           </execution>
+       </executions>
+   </plugin>
    ```
 
 2. Write your OpenAPI spec. `x-allcrud-auto-resource: true` at the document root turns on automatic resource inference - a path pair matching the `CrudController` shape (collection + item) becomes a resource with no per-path marker needed. A path that matches the shape can still opt out with `x-allcrud-resource: false` (an internal/admin-only path, for example). `x-allcrud-resource: true` on its own, without the global flag, is the 100%-explicit alternative - it works today with no extra config. See the vendor extensions table below for both:
@@ -366,6 +459,23 @@ Plugin ID: `io.github.astro-techmath.allcrud-generator`. Configuration block: `a
 | `testOutputDir` | No | `src/test/java` |
 
 `outputDir`/`testOutputDir` are the Java source roots the generator writes to directly (not an intermediate `build/generated/...` scratch directory) - both source sets are wired automatically, so `compileJava`/`compileTestJava` pick up the generated files with no extra configuration.
+
+---
+
+## 🔌 Maven Plugin Reference
+
+Plugin coordinates: `io.github.astro-techmath:allcrud-generator-maven-plugin`. Goal: `generate`.
+
+| Property | Required | Default |
+|---|---|---|
+| `specFile` | **Yes** - no default, the build fails with a clear message if unset | - |
+| `configFile` | No | `${project.basedir}/allcrud-generator.yml` |
+| `outputDir` | No | `${project.basedir}/src/main/java` |
+| `testOutputDir` | No | `${project.basedir}/src/test/java` |
+
+`outputDir`/`testOutputDir` are the Java source roots the generator writes to directly, same as the Gradle plugin - registered on the Maven project via `addCompileSourceRoot`/`addTestCompileSourceRoot` as part of the `generate` goal, so `compile`/`test-compile` pick up the generated files automatically. Unlike Gradle, Maven has no source-set inference to lean on - that registration is real logic this plugin has to do itself, not just glue.
+
+A full, copy-pasteable `pom.xml` (plugin config + all the dependencies from [Prerequisites](#️-prerequisites--project-setup) above) lives in [`allcrud-generator-maven-plugin/example-pom.xml`](allcrud-generator-maven-plugin/example-pom.xml).
 
 ---
 
