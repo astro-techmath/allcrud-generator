@@ -25,9 +25,13 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 // Covers the first "global" (project-level, not per-resource) artifact this generator
 // produces - see AllcrudGenerator#generateGlobalExceptionHandler and ExceptionHandlerConfig.
-// Uses defaults.generate: [pojo] throughout (not the full 5 layers) - the exception handler is
+// Uses generation.pojo only (everything else disabled) throughout - the exception handler is
 // independent of which layers a resource generates, so keeping the fixture yml minimal proves
-// that independence rather than obscuring it.
+// that independence rather than obscuring it. Where the fallback-to-controller-package
+// behavior is under test, controller stays "enabled: false" but keeps its own "package" -
+// proving the fallback reads the CONFIGURED package regardless of whether that layer is
+// actually enabled for generation, exactly like the old format's "packages:" block (which
+// declared all 5 unconditionally) behaved.
 class GlobalExceptionHandlerCompatTest {
 
     private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
@@ -39,21 +43,25 @@ class GlobalExceptionHandlerCompatTest {
 
         Path yml = writeYaml("""
                 pojoNamingStyle: VO
-                packages:
-                  pojo: org.openapitools.model
-                  repository: org.openapitools.api
-                  converter: org.openapitools.api
-                  service: org.openapitools.api
-                  controller: org.openapitools.api
-                defaults:
-                  generate: [pojo]
+                generation:
+                  pojo:
+                    package: org.openapitools.model
+                  repository:
+                    enabled: false
+                  converter:
+                    enabled: false
+                  service:
+                    enabled: false
+                  controller:
+                    enabled: false
+                    package: org.openapitools.api
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
         AllcrudGenerator.generate(config.toGenerationRequest(SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot()));
 
         Path handler = sourceRoot.resolve("org/openapitools/api/GlobalExceptionHandler.java");
-        assertTrue(Files.exists(handler), "Expected GlobalExceptionHandler.java at the packages.controller fallback");
+        assertTrue(Files.exists(handler), "Expected GlobalExceptionHandler.java at the generation.controller.package fallback");
 
         String content = Files.readString(handler);
         assertTrue(content.contains("package org.openapitools.api;"), "Wrong package, found:\n" + content);
@@ -71,14 +79,17 @@ class GlobalExceptionHandlerCompatTest {
 
         Path yml = writeYaml("""
                 pojoNamingStyle: VO
-                packages:
-                  pojo: org.openapitools.model
-                  repository: org.openapitools.api
-                  converter: org.openapitools.api
-                  service: org.openapitools.api
-                  controller: org.openapitools.api
-                defaults:
-                  generate: [pojo]
+                generation:
+                  pojo:
+                    package: org.openapitools.model
+                  repository:
+                    enabled: false
+                  converter:
+                    enabled: false
+                  service:
+                    enabled: false
+                  controller:
+                    enabled: false
                 exceptionHandler:
                   package: com.acme.errors
                   className: ApiExceptionHandler
@@ -108,14 +119,17 @@ class GlobalExceptionHandlerCompatTest {
 
         Path yml = writeYaml("""
                 pojoNamingStyle: VO
-                packages:
-                  pojo: org.openapitools.model
-                  repository: org.openapitools.api
-                  converter: org.openapitools.api
-                  service: org.openapitools.api
-                  controller: org.openapitools.api
-                defaults:
-                  generate: [pojo]
+                generation:
+                  pojo:
+                    package: org.openapitools.model
+                  repository:
+                    enabled: false
+                  converter:
+                    enabled: false
+                  service:
+                    enabled: false
+                  controller:
+                    enabled: false
                 exceptionHandler:
                   generate: false
                 """);
@@ -143,14 +157,18 @@ class GlobalExceptionHandlerCompatTest {
 
         Path yml = writeYaml("""
                 pojoNamingStyle: VO
-                packages:
-                  pojo: org.openapitools.model
-                  repository: org.openapitools.api
-                  converter: org.openapitools.api
-                  service: org.openapitools.api
-                  controller: org.openapitools.api
-                defaults:
-                  generate: [pojo]
+                generation:
+                  pojo:
+                    package: org.openapitools.model
+                  repository:
+                    enabled: false
+                  converter:
+                    enabled: false
+                  service:
+                    enabled: false
+                  controller:
+                    enabled: false
+                    package: org.openapitools.api
                 """);
 
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(yml);
