@@ -1,8 +1,12 @@
 package com.techmath.allcrud.generator.codegen;
 
+import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.RequestBody;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 import org.openapitools.codegen.CodegenModel;
 import org.openapitools.codegen.CodegenOperation;
 import org.openapitools.codegen.CodegenProperty;
@@ -11,6 +15,7 @@ import org.openapitools.codegen.model.ModelMap;
 import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
+import org.openapitools.codegen.utils.ModelUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,9 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -98,6 +107,16 @@ public class AllcrudSpringCodegen extends SpringCodegen {
 
     private static final String X_ALLCRUD_ID_TYPE = "x-allcrud-id-type";
     private static final String X_ALLCRUD_RESOURCE = "x-allcrud-resource";
+    // Document-root vendor extension (OpenAPI#getExtensions(), NOT info#getExtensions()) -
+    // root is where document-wide TOOLING directives conventionally live (e.g. Redoc's
+    // x-tagGroups), as opposed to info-level extensions which describe the API itself (e.g.
+    // Redoc's x-logo). Default false/absent is a deliberate safety choice: turning this on
+    // changes what gets generated for every existing spec that doesn't opt in, so it must
+    // never be silently assumed - same "explicit beats absent, absent falls back to a safe
+    // default" pattern as x-allcrud-resource's own per-path override below, and the same one
+    // already used elsewhere in this project (resolveEffectivePackage, generate:[...] per
+    // resource, onRegenerate).
+    private static final String X_ALLCRUD_AUTO_RESOURCE = "x-allcrud-auto-resource";
     private static final String DTO_STYLE = "DTO";
     private static final String VO_STYLE = "VO";
 
@@ -110,6 +129,16 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // anyway since postProcessOperationsWithModels can run more than once for the same
     // resource's tag group across a single generate() invocation.
     private final Map<String, String> entityPackageByEntityName = new HashMap<>();
+    // Entity names (CodegenModel#schemaName) confirmed as real Allcrud resources - populated
+    // only when postProcessOperationsWithModels actually resolves a tag (explicit or inferred
+    // x-allcrud-resource, with an "id"), read back by AllcrudGenerator#relocate to decide
+    // which staged REPOSITORY/CONVERTER/SERVICE/CONTROLLER/UNIT_TEST/INTEGRATION_TEST files
+    // are real output vs. openapi-generator's own per-tag scaffolding for tags that were
+    // never marked as a resource at all (see confirmedResourceNames()). POJO is deliberately
+    // NOT gated by this - its generation has always been schema-driven, not path/tag-driven,
+    // independent of x-allcrud-resource entirely (a schema can be a legitimate request/
+    // response body of a non-CRUD endpoint and still need its VO/DTO generated).
+    private final Set<String> confirmedResourceNames = new LinkedHashSet<>();
 
     public AllcrudSpringCodegen() {
         super();
@@ -123,6 +152,176 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         // apiDelegate.mustache isn't in this map by default (delegate pattern is opt-in),
         // so there's nothing to remove for it.
         apiTemplateFiles.remove("api.mustache");
+    }
+
+    /**
+     * x-allcrud-auto-resource: true (document root) turns on automatic resource inference:
+     * every path pair matching the CrudController shape gets x-allcrud-resource: true
+     * injected as if a human had written it, UNLESS that path already carries an explicit
+     * x-allcrud-resource (true or false) - explicit always wins over inferred, same as every
+     * other override in this project. Absent/false changes nothing (today's behavior:
+     * every resource needs x-allcrud-resource: true by hand).
+     *
+     * Runs in preprocessOpenAPI, not postProcessOperationsWithModels, and works off the raw
+     * OpenAPI model (PathItem/Operation), not CodegenOperation - deliberately, not just
+     * "earlier because it has to be" (contrast with allcrudEntityName's resolution, forced
+     * later because operation.getTags() is null this early). Correlating collection+item
+     * paths by literal path string here is actually MORE robust than doing it later by tag:
+     * tag-based grouping only puts a resource's operations together because nothing in this
+     * project's specs sets an explicit "tags:" - if a spec ever did, collection and item
+     * operations could land in different tags and a per-tag scan would miss the pair
+     * entirely. Path-string correlation has no such dependency.
+     *
+     * Confirmed by reading DefaultGenerator's source (not assumed): config.preprocessOpenAPI
+     * (openAPI) runs BEFORE config.setOpenAPI(openAPI), but they're passed the exact same
+     * OpenAPI instance - so extensions written onto a PathItem here are visible later, once
+     * this.openAPI is set, to fromOperation's own path-level vendor extension backfill (see
+     * that method below) with zero changes needed there.
+     *
+     * Deliberately does NOT check for an "id" property on the candidate schema (unlike
+     * findIdProperty, used later) - a path pair matching this exact shape is either a real
+     * CRUD resource (falls through to the existing id-presence fail-fast in
+     * postProcessOperationsWithModels if it turns out to have no "id", which is the correct,
+     * loud outcome) or such a strange coincidence that failing loud is still the right
+     * outcome. Checking "id" here too would mean re-walking allOf/inheritance on a raw
+     * Schema, duplicating - less reliably - what findIdProperty already does correctly on
+     * the fully-resolved CodegenModel later.
+     */
+    @Override
+    public void preprocessOpenAPI(OpenAPI openAPI) {
+        super.preprocessOpenAPI(openAPI);
+        inferAllcrudResources(openAPI);
+    }
+
+    private void inferAllcrudResources(OpenAPI openAPI) {
+        if (!Boolean.TRUE.equals(rootExtension(openAPI, X_ALLCRUD_AUTO_RESOURCE))) {
+            return;
+        }
+        Map<String, PathItem> paths = openAPI.getPaths();
+        if (paths == null) {
+            return;
+        }
+
+        for (Entry<String, PathItem> collectionEntry : paths.entrySet()) {
+            String collectionPath = collectionEntry.getKey();
+            if (hasPathParam(collectionPath)) {
+                continue;
+            }
+            PathItem collectionPathItem = collectionEntry.getValue();
+            String schemaName = resolveListItemSchemaName(openAPI, collectionPathItem.getGet());
+            if (schemaName == null) {
+                continue;
+            }
+
+            for (Entry<String, PathItem> itemEntry : paths.entrySet()) {
+                String itemPath = itemEntry.getKey();
+                if (!isItemPathOf(collectionPath, itemPath)) {
+                    continue;
+                }
+                PathItem itemPathItem = itemEntry.getValue();
+                if (!referencesSchema(openAPI, itemPathItem, schemaName)) {
+                    continue;
+                }
+
+                markInferredResource(collectionPathItem);
+                markInferredResource(itemPathItem);
+            }
+        }
+    }
+
+    private Object rootExtension(OpenAPI openAPI, String key) {
+        return openAPI.getExtensions() != null ? openAPI.getExtensions().get(key) : null;
+    }
+
+    private boolean hasPathParam(String path) {
+        return path.contains("{");
+    }
+
+    // "/products" -> "/products/{id}" matches (exactly one more segment, and that segment is
+    // a path parameter). "/products" -> "/products/search" does NOT match (extra segment is a
+    // literal, not "{...}") - this is what keeps a genuinely non-CRUD sibling endpoint like a
+    // search/export/report route from being misdetected as this resource's item path.
+    private boolean isItemPathOf(String collectionPath, String candidatePath) {
+        if (candidatePath.length() <= collectionPath.length() || !candidatePath.startsWith(collectionPath)) {
+            return false;
+        }
+        String suffix = candidatePath.substring(collectionPath.length());
+        return suffix.matches("/\\{[^/{}]+}");
+    }
+
+    // Collection path signal: a GET whose success response is an array of a named ($ref'd)
+    // schema. POST is deliberately NOT required here (approved design decision) - a
+    // read-only-via-API resource (managed through another channel, e.g. an admin tool) still
+    // benefits from generated Repository/Service/Converter/Controller for the operations that
+    // do exist in the spec.
+    private String resolveListItemSchemaName(OpenAPI openAPI, Operation getOperation) {
+        if (getOperation == null) {
+            return null;
+        }
+        Schema<?> responseSchema = firstSuccessResponseSchema(openAPI, getOperation);
+        if (!ModelUtils.isArraySchema(responseSchema)) {
+            return null;
+        }
+        return schemaRefName(ModelUtils.getSchemaItems(responseSchema));
+    }
+
+    // Item path signal: at least one of GET/PUT/PATCH/DELETE on this path references the same
+    // named schema directly (not array-wrapped) - either as its request body or its success
+    // response.
+    private boolean referencesSchema(OpenAPI openAPI, PathItem itemPathItem, String schemaName) {
+        // List.of(...) rejects null elements outright - most item paths only implement a
+        // subset of GET/PUT/PATCH/DELETE, so this array (which allows null) is walked by
+        // index instead of collected into a List first.
+        Operation[] candidates = {
+                itemPathItem.getGet(), itemPathItem.getPut(), itemPathItem.getPatch(), itemPathItem.getDelete()};
+        for (Operation operation : candidates) {
+            if (operation == null) {
+                continue;
+            }
+            if (schemaName.equals(schemaRefName(firstSuccessResponseSchema(openAPI, operation)))) {
+                return true;
+            }
+            if (operation.getRequestBody() != null) {
+                RequestBody requestBody = ModelUtils.getReferencedRequestBody(openAPI, operation.getRequestBody());
+                Schema<?> requestSchema = requestBody != null ? ModelUtils.getSchemaFromRequestBody(requestBody) : null;
+                if (schemaName.equals(schemaRefName(requestSchema))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private Schema<?> firstSuccessResponseSchema(OpenAPI openAPI, Operation operation) {
+        if (operation.getResponses() == null) {
+            return null;
+        }
+        for (Entry<String, ApiResponse> entry : operation.getResponses().entrySet()) {
+            if (entry.getKey().startsWith("2")) {
+                return ModelUtils.getSchemaFromResponse(openAPI, entry.getValue());
+            }
+        }
+        return null;
+    }
+
+    // Only a $ref'd (named component) schema counts - an inline schema has no stable name to
+    // correlate a collection path against an item path with, consistent with how every other
+    // schema resolution in this class (findResourceModel, findIdProperty) only ever deals in
+    // named component schemas.
+    private String schemaRefName(Schema<?> schema) {
+        if (schema == null || schema.get$ref() == null) {
+            return null;
+        }
+        return ModelUtils.getSimpleRef(schema.get$ref());
+    }
+
+    private void markInferredResource(PathItem pathItem) {
+        Map<String, Object> extensions = pathItem.getExtensions();
+        if (extensions == null) {
+            extensions = new LinkedHashMap<>();
+            pathItem.setExtensions(extensions);
+        }
+        extensions.putIfAbsent(X_ALLCRUD_RESOURCE, Boolean.TRUE);
     }
 
     /**
@@ -277,7 +476,24 @@ public class AllcrudSpringCodegen extends SpringCodegen {
                 continue;
             }
 
+            // x-allcrud-resource (explicit or inferred - see preprocessOpenAPI) is the actual
+            // gate on generation, not just a label: a tag whose schema happens to have an
+            // "id" but was never marked/inferred as a resource must NOT get a Controller/
+            // Service/Repository/Converter generated for it - until this check, ANY path with
+            // an id-bearing schema silently got full CRUD scaffolding regardless of
+            // x-allcrud-resource, making x-allcrud-resource: false a no-op and the marker
+            // itself decorative outside the id-missing error below. Stopping here (not
+            // populating objs, not adding to confirmedResourceNames) means
+            // AllcrudGenerator#relocate will discard this tag's staged Controller/Service/
+            // Repository/Converter/*Test files entirely - openapi-generator still renders
+            // them into the throwaway staging dir (harmless), they just never reach
+            // sourceRoot. POJO is unaffected (see confirmedResourceNames' own comment).
+            if (!isAllcrudResource) {
+                break;
+            }
+
             resolved = true;
+            confirmedResourceNames.add(resourceModel.schemaName);
             objs.put(ALLCRUD_ENTITY_NAME, resourceModel.schemaName);
             objs.put(ALLCRUD_POJO_CLASS_NAME, resourceModel.classname);
             objs.put(ALLCRUD_ID_TYPE, idTypeOverride != null ? idTypeOverride : idProperty.dataType);
@@ -314,6 +530,16 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         }
 
         return objs;
+    }
+
+    // Read by AllcrudGenerator#relocate after DefaultGenerator#generate() completes (same
+    // CodegenConfig instance, obtained via ClientOptInput#getConfig()) to decide which staged
+    // REPOSITORY/CONVERTER/SERVICE/CONTROLLER/UNIT_TEST/INTEGRATION_TEST files are real,
+    // confirmed-resource output versus openapi-generator's own per-tag scaffolding for tags
+    // nobody marked/inferred as an allcrud resource - see the comment on
+    // postProcessOperationsWithModels' "if (!isAllcrudResource) break;" above.
+    public Set<String> confirmedResourceNames() {
+        return Set.copyOf(confirmedResourceNames);
     }
 
     // Path-level vendor extension (x-allcrud-resource) backfilled onto the operation by

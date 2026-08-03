@@ -1,0 +1,106 @@
+openapi: 3.0.3
+info:
+  title: Auto Resource API
+  version: 1.0.0
+x-allcrud-auto-resource: true
+paths:
+  /widgets:
+    get:
+      operationId: findAllWidgets
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Widget'
+    post:
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Widget'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+  /widgets/{id}:
+    get:
+      operationId: findWidgetById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+  /widgets/{id}/export:
+    get:
+      operationId: exportWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Export - NOT a CrudController item path (extra literal segment
+            after the path param), must not be picked up by inference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+  /gizmos:
+    x-allcrud-resource: false
+    get:
+      operationId: findAllGizmos
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Gizmo'
+  /gizmos/{id}:
+    x-allcrud-resource: false
+    get:
+      operationId: findGizmoById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Found - x-allcrud-resource:false on both paths must opt this
+            resource OUT even though it matches the inference shape.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gizmo'
+components:
+  schemas:
+    Widget:
+      type: object
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        name: { type: string }
+    Gizmo:
+      type: object
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        name: { type: string }

@@ -1,5 +1,6 @@
 package com.techmath.allcrud.generator;
 
+import com.techmath.allcrud.generator.codegen.AllcrudSpringCodegen;
 import org.openapitools.codegen.ClientOptInput;
 import org.openapitools.codegen.CodegenConstants;
 import org.openapitools.codegen.DefaultGenerator;
@@ -152,7 +153,15 @@ public final class AllcrudGenerator {
 
             new DefaultGenerator().opts(clientOptInput).generate();
 
-            relocate(stagingDir, request);
+            // Same CodegenConfig instance the whole run above just used - ClientOptInput#getConfig()
+            // is deprecated with no replacement yet (see registerApiLayerTemplates below), but it's
+            // still how AllcrudSpringCodegen#confirmedResourceNames (populated during
+            // postProcessOperationsWithModels, which already ran as part of generate() above) gets
+            // read back here, after the fact.
+            @SuppressWarnings("deprecation")
+            AllcrudSpringCodegen codegen = (AllcrudSpringCodegen) clientOptInput.getConfig();
+
+            relocate(stagingDir, request, codegen.confirmedResourceNames());
         } finally {
             deleteRecursively(stagingDir);
         }
@@ -255,9 +264,9 @@ public final class AllcrudGenerator {
     // the layer's configured target package, and writes it under sourceRoot at the path that
     // package implies - unless the per-layer overwrite policy says to leave an existing file
     // alone (see relocateOne).
-    private static void relocate(Path stagingDir, GenerationRequest request) {
+    private static void relocate(Path stagingDir, GenerationRequest request, Set<String> confirmedResourceNames) {
         try (Stream<Path> files = Files.walk(stagingDir)) {
-            files.filter(Files::isRegularFile).forEach(source -> relocateOne(source, request));
+            files.filter(Files::isRegularFile).forEach(source -> relocateOne(source, request, confirmedResourceNames));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -290,10 +299,20 @@ public final class AllcrudGenerator {
         return layer == GeneratedLayer.UNIT_TEST || layer == GeneratedLayer.INTEGRATION_TEST;
     }
 
-    private static void relocateOne(Path source, GenerationRequest request) {
+    private static void relocateOne(Path source, GenerationRequest request, Set<String> confirmedResourceNames) {
         String fileName = source.getFileName().toString();
         StagedFile staged = classify(fileName, request.pojoNamingStyle());
         GeneratedLayer layer = staged.layer();
+
+        // POJO is schema-driven, not resource-driven (see AllcrudSpringCodegen#
+        // confirmedResourceNames' own comment) - every other layer assumes a real,
+        // confirmed (explicit or inferred x-allcrud-resource) CRUD resource behind it, so a
+        // tag that never resolved to one gets discarded here instead of reaching sourceRoot.
+        // openapi-generator still rendered it into the staging dir - that's harmless, staging
+        // is thrown away regardless.
+        if (layer != GeneratedLayer.POJO && !confirmedResourceNames.contains(staged.resourceName())) {
+            return;
+        }
 
         ResourceOverride override = request.resourceOverrides().get(staged.resourceName());
         Set<GeneratedLayer> effectiveLayers = (override != null && override.generate() != null)

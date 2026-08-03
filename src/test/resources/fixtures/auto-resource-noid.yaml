@@ -1,0 +1,40 @@
+openapi: 3.0.3
+info:
+  title: Auto Resource No-Id API
+  version: 1.0.0
+x-allcrud-auto-resource: true
+paths:
+  /gadgets:
+    get:
+      operationId: findAllGadgets
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Gadget'
+  /gadgets/{id}:
+    get:
+      operationId: findGadgetById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Found - Gadget has no "id" property, matches the inference
+            shape anyway, must fail fast in postProcessOperationsWithModels.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gadget'
+components:
+  schemas:
+    Gadget:
+      type: object
+      properties:
+        name: { type: string }
