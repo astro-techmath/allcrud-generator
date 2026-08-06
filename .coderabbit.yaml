@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+enable_free_tier: true
+
+reviews:
+  profile: "assertive"
+  poem: false
+  high_level_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  collapse_walkthrough: true
+  suggested_labels: true
+  suggested_reviewers: true
+  in_progress_fortune: false
+  request_changes_workflow: true
+
+  slop_detection:
+    enabled: true
+    label: "needs-human-review"
+
+  path_filters:
+    - "!**/build/**"
+    - "!**/target/**"
+    - "!**/.gradle/**"
+    - "!**/.idea/**"
+    - "!**/gradlew"
+    - "!**/gradlew.bat"
+    - "!**/gradle/wrapper/**"
+
+  path_instructions:
+    - path: "**/*.java"
+      instructions: >
+        Apply SOLID principles, Clean Code practices, DRY, KISS, and YAGNI.
+        Favor small, single-responsibility methods and classes. Flag
+        speculative abstraction or configuration options added without a
+        concrete, stated use case (YAGNI) - this project has a strong
+        "hardcode before parametrize" discipline and avoids premature
+        generalization.
+
+    - path: "src/main/resources/templates/**/*.mustache"
+      instructions: >
+        These Mustache templates generate Java source code for consumer
+        projects. Review for: (1) hardcoded values that should come from
+        AllcrudSpringCodegen-resolved variables instead, (2) missing package
+        imports for cross-layer references, (3) whether a traceability
+        comment referencing the original openapi-generator template exists
+        for any newly customized template.
+
+    - path: "**/AllcrudGeneratorYamlConfig.java"
+      instructions: >
+        Config parsing changes should fail fast with a clear message on
+        invalid input, not silently ignore or default unexpected keys.
+        Flag any new config key that lacks validation.
+
+    - path: "**/AllcrudSpringCodegen.java"
+      instructions: >
+        This is the core dynamic-resolution engine (entity name, POJO class
+        name, ID type, per-layer packages). Changes here should be verified
+        empirically against the real openapi-generator source/behavior, not
+        assumed. Flag any hardcoded assumption about tag/operation naming,
+        pipeline stage ordering, or vendor extension propagation that isn't
+        backed by a comment citing the verified source.
+
+    - path: "**/GenerationRequest.java"
+      instructions: >
+        This type models the resolved generation configuration. Any new
+        required field should have a clear justification for why every
+        call site (tests included) needs to change - flag if a field could
+        instead be optional/defaulted to reduce blast radius.
+
+    - path: "**/ResourceOverride.java"
+      instructions: >
+        This type models per-resource overrides. Any new required field
+        should have a clear justification for why every call site (tests
+        included) needs to change - flag if a field could instead be
+        optional/defaulted to reduce blast radius.
+
+  pre_merge_checks:
+    title:
+      mode: "warning"
+      requirements: "Conventional Commits style (feat:/fix:/docs:/refactor:/test:), concise, describes the actual change."
+    description:
+      mode: "warning"
+    custom_checks:
+      - name: "Real validation over reflection-only"
+        mode: "warning"
+        instructions: >
+          Any change to code generation logic (AllcrudGenerator,
+          AllcrudSpringCodegen, or any .mustache template) that adds a test
+          should use real compilation (javax.tools.JavaCompiler) or a real
+          Spring context when testing runtime behavior (bean registration,
+          serialization), not reflection alone. Flag PRs that only add
+          reflection-based assertions for changes with runtime implications.
+      - name: "No dead code left behind"
+        mode: "warning"
+        instructions: >
+          When a design decision is replaced (e.g. a config key renamed, a
+          mechanism superseded), flag any old code path, test, or comment
+          that should have been removed but wasn't.
+      - name: "Generate-once-never-overwrite respected"
+        mode: "warning"
+        instructions: >
+          Repository/Converter/Service/Controller/exceptionHandler/
+          unitTest/integrationTest must never be silently overwritten once
+          generated. Flag any change to AllcrudGenerator's placement/
+          overwrite logic that could cause hand-written logic in these
+          layers to be destroyed on regeneration. Only the POJO layer has a
+          configurable overwrite policy, and it defaults to preserve.
+
+  tools:
+    pmd:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    osvScanner:
+      enabled: true
