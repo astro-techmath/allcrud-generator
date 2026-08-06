@@ -17,7 +17,7 @@ val junitVersion = "5.11.0"
 // The allcrud core artifact (see project(":") below) declares its Spring Boot starters
 // without explicit versions, managed by this same BOM in the root module - it doesn't
 // propagate transitively through project(":"), so it's imported here too.
-val springBootVersion = "3.5.6"
+val springBootVersion = "4.1.0"
 
 dependencyManagement {
     imports {

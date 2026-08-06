@@ -14,7 +14,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.6</version>
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -70,10 +70,20 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Spring Boot 4 modularization - @AutoConfigureMockMvc (generated *ControllerIT) only
+             auto-configures with the corresponding test starter for the web starter in use. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Only needed if generation.integrationTest.enabled: true (Docker required) -
              same optional=true story as above: CrudControllerIntegrationTests (what
-             generated *ControllerIT extends) needs real Postgres via Testcontainers. -->
+             generated *ControllerIT extends) needs real Postgres via Testcontainers.
+             Testcontainers 2.x renamed these artifacts (postgresql -> testcontainers-postgresql,
+             junit-jupiter -> testcontainers-junit-jupiter) - confirmed against the BOM Spring
+             Boot 4.1's spring-boot-dependencies imports, not assumed. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
@@ -81,12 +91,12 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
+            <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -54,10 +54,11 @@ Before applying the plugin, your consumer project needs:
 
 ### Maven equivalent
 
-Everything above applies to a Maven consumer too, plus two Maven-specific gotchas that only show up when `unitTest`/`integrationTest` are enabled - both are a consequence of how Maven resolves dependencies, not a plugin bug:
+Everything above applies to a Maven consumer too, plus a couple of gotchas that only show up when `unitTest`/`integrationTest` are enabled:
 
-- **`instancio-junit`, `spring-boot-testcontainers`, and `testcontainers-postgresql` are declared `optional=true` in Allcrud's POM.** Gradle's `testFixtures(...)` notation resolves these transitively via Gradle module metadata, but a plain Maven POM consumer never pulls in `optional` transitive dependencies, regardless of scope - that's how the classic POM format works, not a bug. **You must declare all three explicitly** if you generate `unitTest` and/or `integrationTest`.
-- **Surefire (Maven's default `test` phase) ignores `*IT.java` by convention.** The generated `*ControllerIT` classes need the **Failsafe** plugin's `integration-test`/`verify` goals instead - the standard Maven convention (Surefire = unit tests, Failsafe = integration tests, the `IT` suffix is the trigger).
+- **`instancio-junit`, `spring-boot-testcontainers`, and `testcontainers-postgresql` are declared `optional=true` in Allcrud's POM.** Gradle's `testFixtures(...)` notation resolves these transitively via Gradle module metadata, but a plain Maven POM consumer never pulls in `optional` transitive dependencies, regardless of scope - that's how the classic POM format works, not a bug. **You must declare all three explicitly** if you generate `unitTest` and/or `integrationTest`. (Maven-specific.)
+- **Surefire (Maven's default `test` phase) ignores `*IT.java` by convention.** The generated `*ControllerIT` classes need the **Failsafe** plugin's `integration-test`/`verify` goals instead - the standard Maven convention (Surefire = unit tests, Failsafe = integration tests, the `IT` suffix is the trigger). (Maven-specific.)
+- **Spring Boot 4's modularization split `@AutoConfigureMockMvc`'s auto-configuration out of the web starter itself.** The generated `*ControllerIT` classes carry `@AutoConfigureMockMvc` - it silently does nothing without the matching `spring-boot-starter-webmvc-test` test dependency declared alongside `spring-boot-starter-webmvc`/`-web`. (Not Maven-specific - applies to Gradle consumers on Spring Boot 4 too, just declared as `testImplementation` there instead.)
 
 ```xml
 <dependencies>
@@ -81,8 +82,17 @@ Everything above applies to a Maven consumer too, plus two Maven-specific gotcha
         <version>&lt;version&gt;</version>
         <scope>test</scope>
     </dependency>
+    <!-- Spring Boot 4 modularization - @AutoConfigureMockMvc (generated *ControllerIT) only
+         auto-configures with the corresponding test starter for the web starter in use. -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-webmvc-test</artifactId>
+        <scope>test</scope>
+    </dependency>
 
-    <!-- Only needed if you generate integrationTest (Docker required) -->
+    <!-- Only needed if you generate integrationTest (Docker required). Testcontainers 2.x
+         renamed these artifacts (postgresql -> testcontainers-postgresql, junit-jupiter ->
+         testcontainers-junit-jupiter). -->
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-testcontainers</artifactId>
@@ -90,12 +100,12 @@ Everything above applies to a Maven consumer too, plus two Maven-specific gotcha
     </dependency>
     <dependency>
         <groupId>org.testcontainers</groupId>
-        <artifactId>postgresql</artifactId>
+        <artifactId>testcontainers-postgresql</artifactId>
         <scope>test</scope>
     </dependency>
     <dependency>
         <groupId>org.testcontainers</groupId>
-        <artifactId>junit-jupiter</artifactId>
+        <artifactId>testcontainers-junit-jupiter</artifactId>
         <scope>test</scope>
     </dependency>
     <dependency>

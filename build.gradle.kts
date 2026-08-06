@@ -19,7 +19,7 @@ java {
     sourceCompatibility = JavaVersion.VERSION_21
 }
 
-val springBootVersion = "3.5.6"
+val springBootVersion = "4.1.0"
 val commonsLang3Version = "3.20.0"
 val jacksonBomVersion = "2.22.1"
 
@@ -38,11 +38,13 @@ val allcrudCoreArtifact: String by project
 val allcrudCoreVersion: String by project
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
 val openapiGeneratorVersion = "7.23.0"
 val junitVersion = "5.11.0"
+val snakeYamlVersion = "2.4"
 
 dependencies {
     implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
@@ -50,7 +52,7 @@ dependencies {
     // transitively via openapi-generator's own dependency tree (confirmed via
     // ./gradlew dependencies --configuration compileClasspath), declared explicitly here
     // instead of relying on that accidental transitive availability.
-    implementation("org.yaml:snakeyaml:2.4")
+    implementation("org.yaml:snakeyaml:$snakeYamlVersion")
     // Only src/test/java references allcrud core classes (reflection + compiling
     // generated fixtures against it) - main never does. Keeping this as "implementation"
     // pulled it into allcrud-generator-gradle-plugin's own plugin classpath via
