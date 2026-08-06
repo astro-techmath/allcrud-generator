@@ -29,6 +29,8 @@ class AutoResourceInferenceCompatTest {
 
     private static final Path AUTO_RESOURCE_SPEC = Path.of("src/test/resources/fixtures/auto-resource.yaml");
     private static final Path AUTO_RESOURCE_NO_ID_SPEC = Path.of("src/test/resources/fixtures/auto-resource-noid.yaml");
+    private static final Path AUTO_RESOURCE_REQUEST_BODY_SPEC =
+            Path.of("src/test/resources/fixtures/auto-resource-requestbody.yaml");
 
     @Test
     void inferredResourceGeneratesAllFourLayersWithNoExplicitMarker() throws IOException {
@@ -147,6 +149,34 @@ class AutoResourceInferenceCompatTest {
                 "Expected the fail-fast to name Gadget, was: " + rootCause.getMessage());
         assertTrue(rootCause.getMessage().contains("no \"id\" property"),
                 "Expected the fail-fast to explain the missing id, was: " + rootCause.getMessage());
+    }
+
+    @Test
+    void itemPathMatchedOnlyViaRequestBodySchemaIsStillInferred() throws IOException {
+        Path sourceRoot = Files.createTempDirectory("allcrud-auto-resource-requestbody");
+        EntityFixtures.copyInto(sourceRoot, "Sprocket");
+
+        // /sprockets/{id}'s only operation is PUT, whose 204 response has no body at all - the
+        // ONLY thing linking it to Sprocket is its requestBody schema, proving
+        // referencesSchema's requestBody branch (not just the response-schema one every other
+        // test in this class exercises) actually confirms the match.
+        AllcrudGenerator.generate(new GenerationRequest(
+                AUTO_RESOURCE_REQUEST_BODY_SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
+                Set.of(GeneratedLayer.values()),
+                Map.of(
+                        GeneratedLayer.POJO, "org.openapitools.model",
+                        GeneratedLayer.CONTROLLER, "org.openapitools.api",
+                        GeneratedLayer.SERVICE, "org.openapitools.api",
+                        GeneratedLayer.REPOSITORY, "org.openapitools.api",
+                        GeneratedLayer.CONVERTER, "org.openapitools.api"),
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER));
+
+        assertTrue(Files.exists(sourceRoot.resolve("org/openapitools/api/SprocketController.java")),
+                "Sprocket's item path only references its schema via the PUT's requestBody, "
+                        + "not any response - inference must still confirm it as a resource");
+        assertTrue(Files.exists(sourceRoot.resolve("org/openapitools/api/SprocketService.java")));
+        assertTrue(Files.exists(sourceRoot.resolve("org/openapitools/api/SprocketRepository.java")));
+        assertTrue(Files.exists(sourceRoot.resolve("org/openapitools/api/SprocketConverter.java")));
     }
 
 }

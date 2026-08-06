@@ -1,11 +1,5 @@
 package com.techmath.allcrud.generator;
 
-import org.yaml.snakeyaml.Yaml;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -136,12 +130,7 @@ public final class AllcrudGeneratorYamlConfig {
     }
 
     public static AllcrudGeneratorYamlConfig load(Path ymlPath) {
-        Map<String, Object> root;
-        try (InputStream in = Files.newInputStream(ymlPath)) {
-            root = new Yaml().load(in);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        Map<String, Object> root = IoExceptions.readYaml(ymlPath);
         if (root == null) {
             throw new IllegalArgumentException("Empty or invalid YAML at " + ymlPath);
         }

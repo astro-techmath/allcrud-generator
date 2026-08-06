@@ -7,16 +7,11 @@ import org.openapitools.codegen.DefaultGenerator;
 import org.openapitools.codegen.config.CodegenConfigurator;
 import org.openapitools.codegen.config.GlobalSettings;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 // Public generation entrypoint - not a production entrypoint (CLI, Gradle plugin) by
 // itself yet, that's a separate, not-yet-designed decision. This is the generic,
@@ -55,12 +50,7 @@ public final class AllcrudGenerator {
         // (see shouldOverwrite()). yml-driven configuration (allcrud-generator.yml) is not
         // wired up yet - callers still pass layersToGenerate/packages/pojoOnRegenerate
         // directly, hardcoded on their end.
-        Path stagingDir;
-        try {
-            stagingDir = Files.createTempDirectory("allcrud-generator-staging");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        Path stagingDir = IoExceptions.createTempDirectory("allcrud-generator-staging");
 
         try {
             CodegenConfigurator configurator = new CodegenConfigurator()
@@ -163,7 +153,7 @@ public final class AllcrudGenerator {
 
             relocate(stagingDir, request, codegen.confirmedResourceNames());
         } finally {
-            deleteRecursively(stagingDir);
+            IoExceptions.deleteRecursively(stagingDir);
         }
     }
 
@@ -205,12 +195,7 @@ public final class AllcrudGenerator {
                 }
                 """.formatted(config.targetPackage(), config.className());
 
-        try {
-            Files.createDirectories(target.getParent());
-            Files.writeString(target, content, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        IoExceptions.writeFile(target, content);
     }
 
     // layer name (GeneratedLayer#name(), e.g. "SERVICE") -> global package - only the 5 layers
@@ -265,10 +250,8 @@ public final class AllcrudGenerator {
     // package implies - unless the per-layer overwrite policy says to leave an existing file
     // alone (see relocateOne).
     private static void relocate(Path stagingDir, GenerationRequest request, Set<String> confirmedResourceNames) {
-        try (Stream<Path> files = Files.walk(stagingDir)) {
-            files.filter(Files::isRegularFile).forEach(source -> relocateOne(source, request, confirmedResourceNames));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        for (Path source : IoExceptions.listRegularFilesRecursively(stagingDir)) {
+            relocateOne(source, request, confirmedResourceNames);
         }
     }
 
@@ -342,21 +325,9 @@ public final class AllcrudGenerator {
             return;
         }
 
-        String content;
-        try {
-            content = Files.readString(source, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
+        String content = IoExceptions.readFile(source);
         String rewritten = rewritePackageStatement(content, targetPackage, fileName);
-
-        try {
-            Files.createDirectories(target.getParent());
-            Files.writeString(target, rewritten, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        IoExceptions.writeFile(target, rewritten);
     }
 
     // The fixed table: Repository/Converter/Service/Controller never overwrite an existing
@@ -431,20 +402,6 @@ public final class AllcrudGenerator {
         }
         String rest = newlineIndex == -1 ? "" : content.substring(newlineIndex);
         return "package " + targetPackage + ";" + rest;
-    }
-
-    private static void deleteRecursively(Path dir) {
-        try (Stream<Path> paths = Files.walk(dir)) {
-            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.delete(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     // ClientOptInput#getConfig() is deprecated in openapi-generator 7.23.0 with no

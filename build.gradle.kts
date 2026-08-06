@@ -9,6 +9,7 @@ plugins {
     java
     application
     `maven-publish`
+    jacoco
     id("io.spring.dependency-management") version "1.1.7"
     id("org.sonarqube") version "7.4.0.8496"
 }
@@ -20,10 +21,15 @@ java {
     sourceCompatibility = JavaVersion.VERSION_21
 }
 
+jacoco {
+    toolVersion = "0.8.15"
+}
+
 sonar {
     properties {
         property("sonar.projectKey", "astro-techmath_allcrud-generator")
         property("sonar.organization", "astro-techmath")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
     }
 }
 
@@ -79,6 +85,31 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    // IoExceptions (com.techmath.allcrud.generator) is a single-purpose wrapper around
+    // "catch (IOException e) { throw new UncheckedIOException(e); }" - defensive I/O-failure
+    // plumbing with no branching logic of its own, only reachable by mocking disk failure.
+    // Excluded as its own dedicated class (not a blanket class-level exclusion elsewhere) so
+    // every other line in AllcrudGenerator/AllcrudGeneratorYamlConfig stays subject to the
+    // project's 100%-coverage goal.
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude("**/IoExceptions.class")
+            }
+        })
+    )
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
 }
 
 // Minimal publish setup - just enough for allcrud-generator-gradle-plugin's

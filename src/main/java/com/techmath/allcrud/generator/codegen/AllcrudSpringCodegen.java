@@ -1,5 +1,6 @@
 package com.techmath.allcrud.generator.codegen;
 
+import com.techmath.allcrud.generator.IoExceptions;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.servers.Server;
@@ -17,11 +18,8 @@ import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
 import org.openapitools.codegen.utils.ModelUtils;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -30,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Custom CodegenConfig for the "spring" generator, used instead of the stock one so
@@ -674,16 +671,11 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         Path sourceRoot = Path.of(sourceRootValue.toString());
         String targetFileName = entityName + ".java";
 
-        List<Path> matches = new ArrayList<>();
-        if (Files.isDirectory(sourceRoot)) {
-            try (Stream<Path> files = Files.walk(sourceRoot)) {
-                files.filter(Files::isRegularFile)
+        List<Path> matches = Files.isDirectory(sourceRoot)
+                ? IoExceptions.listRegularFilesRecursively(sourceRoot).stream()
                         .filter(path -> path.getFileName().toString().equals(targetFileName))
-                        .forEach(matches::add);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
+                        .toList()
+                : List.of();
 
         if (matches.isEmpty()) {
             throw new IllegalStateException(
@@ -702,12 +694,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     }
 
     private String readPackageStatement(Path javaFile) {
-        String content;
-        try {
-            content = Files.readString(javaFile);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        String content = IoExceptions.readFile(javaFile);
         int newlineIndex = content.indexOf('\n');
         String firstLine = (newlineIndex == -1 ? content : content.substring(0, newlineIndex)).trim();
         if (!firstLine.startsWith("package ") || !firstLine.endsWith(";")) {

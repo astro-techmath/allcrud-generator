@@ -1,0 +1,60 @@
+openapi: 3.0.3
+info:
+  title: ID Type Override API
+  version: 1.0.0
+paths:
+  /widgets:
+    x-allcrud-resource: true
+    x-allcrud-id-type: java.util.UUID
+    get:
+      operationId: findAllWidgets
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Widget'
+    post:
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Widget'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+  /widgets/{id}:
+    x-allcrud-resource: true
+    x-allcrud-id-type: java.util.UUID
+    get:
+      operationId: findWidgetById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+components:
+  schemas:
+    Widget:
+      type: object
+      properties:
+        # The schema's own id type is int64 (Long) - x-allcrud-id-type above must win over
+        # this, not the other way around.
+        id: { type: integer, format: int64, readOnly: true }
+        name: { type: string }
