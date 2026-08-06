@@ -7,13 +7,30 @@ reviews:
   profile: "assertive"
   poem: false
   high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_instructions: >
+    Use Conventional Commits style (feat:/fix:/docs:/refactor:/test:/chore:),
+    concise, matching this repository's commit message convention.
   sequence_diagrams: true
   estimate_code_review_effort: true
-  collapse_walkthrough: true
+  changed_files_summary: true
+  collapse_walkthrough: false
   suggested_labels: true
   suggested_reviewers: true
   in_progress_fortune: false
   request_changes_workflow: true
+  review_status: true
+  commit_status: true
+  abort_on_close: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "staging"
+      - "develop"
 
   slop_detection:
     enabled: true
@@ -51,12 +68,16 @@ reviews:
       instructions: >
         Config parsing changes should fail fast with a clear message on
         invalid input, not silently ignore or default unexpected keys.
-        Flag any new config key that lacks validation.
+        Flag any new config key that lacks validation. The yml format uses
+        generation.<layer>.{enabled,package,onRegenerate} - onRegenerate is
+        exclusive to the "pojo" layer, package is not a valid global key for
+        unitTest/integrationTest (only as a per-resource override).
 
     - path: "**/AllcrudSpringCodegen.java"
       instructions: >
         This is the core dynamic-resolution engine (entity name, POJO class
-        name, ID type, per-layer packages). Changes here should be verified
+        name, ID type, per-layer packages, x-allcrud-resource gating and
+        x-allcrud-auto-resource inference). Changes here should be verified
         empirically against the real openapi-generator source/behavior, not
         assumed. Flag any hardcoded assumption about tag/operation naming,
         pipeline stage ordering, or vendor extension propagation that isn't
@@ -75,6 +96,15 @@ reviews:
         should have a clear justification for why every call site (tests
         included) needs to change - flag if a field could instead be
         optional/defaulted to reduce blast radius.
+
+    - path: "**/AllcrudGenerator.java"
+      instructions: >
+        This is the generation pipeline (staging → classify → rewrite
+        package → place → apply overwrite policy → discard staging). Flag
+        any change to placement/overwrite logic that could cause
+        hand-written logic in Repository/Converter/Service/Controller/
+        exceptionHandler/unitTest/integrationTest to be silently overwritten
+        - only the POJO layer has a configurable overwrite policy.
 
   pre_merge_checks:
     title:
@@ -109,7 +139,12 @@ reviews:
           configurable overwrite policy, and it defaults to preserve.
 
   tools:
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
     pmd:
+      enabled: true
+    semgrep:
       enabled: true
     yamllint:
       enabled: true
@@ -119,3 +154,11 @@ reviews:
       enabled: true
     osvScanner:
       enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
