@@ -42,7 +42,7 @@ repositories {
     mavenCentral()
 }
 
-val openapiGeneratorVersion = "7.23.0"
+val openapiGeneratorVersion = "7.24.0"
 val junitVersion = "5.11.0"
 val snakeYamlVersion = "2.4"
 
