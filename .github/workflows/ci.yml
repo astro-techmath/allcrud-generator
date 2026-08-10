@@ -7,7 +7,7 @@ on:
     branches: [main, staging, develop]
 
 jobs:
-  gradle:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,13 +22,29 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
       - name: Ensure gradlew is executable
         run: chmod +x gradlew
 
       # Multi-project build (see settings.gradle.kts) - covers the root module and
       # allcrud-generator-gradle-plugin in one pass.
-      - name: Build and test
+      - name: Build and test (Gradle)
         run: ./gradlew build
+
+      # allcrud-generator-maven-plugin (separate, independent Maven build - own pom.xml, not
+      # part of the Gradle multi-project) depends at compile time on the root module's real
+      # artifact (io.github.astro-techmath:allcrud-generator), resolved via mavenLocal(). Must
+      # run in the same job, after the Gradle build, so that artifact actually exists locally -
+      # splitting this across parallel jobs/VMs left the Maven job unable to resolve it.
+      - name: Publish root artifact to Maven local
+        run: ./gradlew publishToMavenLocal
 
       - name: SonarQube analysis
         env:
@@ -36,20 +52,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./gradlew sonar -Dsonar.token=${{ secrets.SONAR_TOKEN }}
 
-  maven:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      # allcrud-generator-maven-plugin is a separate, independent Maven build (own pom.xml,
-      # not part of the Gradle multi-project) - see its pom.xml for why. No SonarQube here yet -
-      # that's a separate follow-up once the Maven-side toolchain is sorted out.
-      - name: Build and test
+      - name: Build and test (Maven)
         working-directory: allcrud-generator-maven-plugin
         run: mvn -B verify
