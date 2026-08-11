@@ -2,6 +2,7 @@ plugins {
     java
     `java-gradle-plugin`
     `maven-publish`
+    jacoco
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -10,6 +11,10 @@ version = "0.1.0-SNAPSHOT"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
+}
+
+jacoco {
+    toolVersion = "0.8.15"
 }
 
 val junitVersion = "5.11.0"
@@ -50,4 +55,16 @@ gradlePlugin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
 }

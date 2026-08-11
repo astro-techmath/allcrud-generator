@@ -29,7 +29,16 @@ sonar {
     properties {
         property("sonar.projectKey", "astro-techmath_allcrud-generator")
         property("sonar.organization", "astro-techmath")
-        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        // The allcrud-generator-gradle-plugin subproject has its own jacocoTestReport.xml -
+        // sonar treats a multi-project build as one analysis, so both paths need to be listed
+        // (comma-separated, relative to the project root) or the subproject's classes never get
+        // matched to a coverage report at all - confirmed against Sonar's own docs on this
+        // property, not assumed.
+        property(
+            "sonar.coverage.jacoco.xmlReportPaths",
+            "build/reports/jacoco/test/jacocoTestReport.xml," +
+                "allcrud-generator-gradle-plugin/build/reports/jacoco/test/jacocoTestReport.xml"
+        )
         // IoExceptions is already excluded from the JaCoCo XML itself (see the
         // jacocoTestReport.classDirectories exclusion below), but that only controls what JaCoCo
         // reports - Sonar reads the same XML and, for any class absent from it, treats "absent"
@@ -123,8 +132,12 @@ tasks.test {
 // step - confirmed empirically via `./gradlew :sonar --dry-run`, which shows no dependency on
 // jacocoTestReport in the task graph. Same bug class as the plainJavadocJar/generateMetadataFile
 // issue already fixed in allcrud: a task consuming another task's output without declaring it.
+// Also needs the subproject's own jacocoTestReport (see sonar.coverage.jacoco.xmlReportPaths
+// above) for the same reason - it's a separate task in a separate project, with no dependency
+// on it otherwise.
 tasks.named("sonar") {
     dependsOn(tasks.jacocoTestReport)
+    dependsOn(":allcrud-generator-gradle-plugin:jacocoTestReport")
 }
 
 // Minimal publish setup - just enough for allcrud-generator-gradle-plugin's
