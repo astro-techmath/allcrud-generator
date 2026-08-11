@@ -30,6 +30,12 @@ sonar {
         property("sonar.projectKey", "astro-techmath_allcrud-generator")
         property("sonar.organization", "astro-techmath")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        // IoExceptions is already excluded from the JaCoCo XML itself (see the
+        // jacocoTestReport.classDirectories exclusion below), but that only controls what JaCoCo
+        // reports - Sonar reads the same XML and, for any class absent from it, treats "absent"
+        // as "0% covered" rather than "excluded on purpose". Those are different concepts to
+        // Sonar, so the exclusion has to be declared here too, not just at the JaCoCo level.
+        property("sonar.coverage.exclusions", "src/main/java/com/techmath/allcrud/generator/IoExceptions.java")
     }
 }
 
@@ -110,6 +116,15 @@ tasks.jacocoTestReport {
 
 tasks.test {
     finalizedBy(tasks.jacocoTestReport)
+}
+
+// The sonar task only picked up jacocoTestReport.xml by accident, when a CI step happened to run
+// ./gradlew build (which produces it via test's finalizedBy) before a separate ./gradlew sonar
+// step - confirmed empirically via `./gradlew :sonar --dry-run`, which shows no dependency on
+// jacocoTestReport in the task graph. Same bug class as the plainJavadocJar/generateMetadataFile
+// issue already fixed in allcrud: a task consuming another task's output without declaring it.
+tasks.named("sonar") {
+    dependsOn(tasks.jacocoTestReport)
 }
 
 // Minimal publish setup - just enough for allcrud-generator-gradle-plugin's
