@@ -1,0 +1,58 @@
+name: Regenerate Dependency Verification Metadata
+
+# Manual, human-triggered only - never on push/pull_request. Regenerating
+# gradle/verification-metadata.xml means running Gradle against whatever build files are on the
+# target branch, which for a Dependabot branch means Dependabot's own version bump. Doing that
+# automatically from a PR-triggered workflow (e.g. pull_request_target) would mean executing
+# PR-controlled build files under a token with write access - the exact "pwn request" pattern
+# GitHub's default read-only GITHUB_TOKEN for Dependabot-triggered workflows exists to prevent.
+# workflow_dispatch requires the invoker to already have write access to this repo - the same
+# trust level they'd need to run this locally themselves, just without the local clone/push
+# round-trip.
+#
+# Covers the root module + allcrud-generator-gradle-plugin (one Gradle multi-project build, one
+# verification-metadata.xml) - allcrud-generator-maven-plugin is a separate Maven build and
+# doesn't use Gradle's dependency verification at all.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to regenerate gradle/verification-metadata.xml on (e.g. a Dependabot PR branch)'
+        required: true
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
+      # Also runs the full build (not just dependency resolution) - confirms the bumped
+      # dependency actually works before committing new checksums for it, not just that it
+      # downloads.
+      - name: Regenerate verification metadata
+        run: ./gradlew --write-verification-metadata sha256 build
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gradle/verification-metadata.xml
+          if git diff --cached --quiet; then
+            echo "No changes to gradle/verification-metadata.xml - nothing to commit."
+          else
+            git commit -m "chore: regenerate gradle/verification-metadata.xml"
+            git push origin HEAD:${{ inputs.branch }}
+          fi

@@ -35,8 +35,33 @@ jobs:
 
       # Multi-project build (see settings.gradle.kts) - covers the root module and
       # allcrud-generator-gradle-plugin in one pass.
+      #
+      # Output captured to a file (not just run directly) so the hint step below can inspect it -
+      # PIPESTATUS[0] preserves gradlew's own exit code through the tee pipe (tee's own exit code
+      # would otherwise mask a real build failure as success).
       - name: Build and test (Gradle)
-        run: ./gradlew build
+        shell: bash
+        run: |
+          set +e
+          ./gradlew build 2>&1 | tee build-output.log
+          exit ${PIPESTATUS[0]}
+
+      # gradle/verification-metadata.xml records a sha256 per dependency artifact - a Dependabot
+      # version bump (dependabot.yml, grouped/weekly) lands with no matching entry until someone
+      # regenerates it, and Gradle fails the build with a real but easy-to-miss error. Turning
+      # that into an explicit, actionable message here instead of leaving it as a generic build
+      # failure - not automated further: workflows triggered by a Dependabot PR run with a
+      # read-only GITHUB_TOKEN and no repo secrets by design (GitHub's "pwn request" protection),
+      # and regenerating this file means running Gradle against that PR's own build files under
+      # write access, which is exactly the privilege-escalation pattern that protection exists to
+      # block - not something to route around. See the "Regenerate Dependency Verification
+      # Metadata" workflow (workflow_dispatch) for the safe, human-triggered alternative.
+      - name: Dependency verification failure hint
+        if: failure()
+        run: |
+          if grep -q "Dependency verification failed" build-output.log; then
+            echo "::error title=Dependency verification outdated::A dependency version bump (likely Dependabot) has no matching entry in gradle/verification-metadata.xml. Fix: run './gradlew --write-verification-metadata sha256 build' locally on this branch, commit the updated gradle/verification-metadata.xml, and push to this same PR - or trigger the 'Regenerate Dependency Verification Metadata' workflow against this branch instead."
+          fi
 
       # allcrud-generator-maven-plugin (separate, independent Maven build - own pom.xml, not
       # part of the Gradle multi-project) depends at compile time on the root module's real
