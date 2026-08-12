@@ -279,6 +279,35 @@ class AllcrudGeneratorYamlConfigCompatTest {
     }
 
     @Test
+    void integrationTestWithControllerBothEnabledLoadsWithoutThrowing() throws IOException {
+        // The only other INTEGRATION_TEST/CONTROLLER test above proves the throwing side of
+        // this check (CONTROLLER absent) - this proves the non-throwing side (CONTROLLER
+        // present too), never exercised elsewhere since most fixtures don't enable
+        // integrationTest at all. Needs pojo/converter (CONTROLLER's own dependencies) enabled
+        // too, or CONTROLLER's own validation would throw first.
+        Path validYml = writeYaml("""
+                pojoNamingStyle: VO
+                generation:
+                  pojo:
+                    package: a
+                  repository:
+                    package: b
+                  converter:
+                    package: c
+                  service:
+                    package: d
+                  controller:
+                    package: e
+                  integrationTest:
+                    enabled: true
+                """);
+
+        AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(validYml);
+
+        assertNotEquals(null, config);
+    }
+
+    @Test
     void exceptionHandlerWithNoResolvablePackageFailsWithClearMessage() throws IOException {
         // controller disabled (so exceptionHandler can't fall back to generation.controller.
         // package) and exceptionHandler.package never declared explicitly either - enabled:true

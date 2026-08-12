@@ -92,6 +92,33 @@ class EntityResolutionCompatTest {
                 "Expected the malformed-package-line message, was: " + rootCause.getMessage());
     }
 
+    @Test
+    void generateFailsFastWhenEntityFilePackageLineHasNoTrailingSemicolon() throws IOException {
+        // generateFailsFastWhenEntityFileFirstLineIsNotAPackageDeclaration above only covers the
+        // "doesn't start with 'package '" half of readPackageStatement's check (short-circuits
+        // before ever evaluating endsWith(";")) - every other test's fixture always has a
+        // proper, semicolon-terminated package line. This is the other half: starts with
+        // "package " but is missing the trailing ';', never exercised elsewhere.
+        Path sourceRoot = Files.createTempDirectory("allcrud-entity-no-semicolon");
+        EntityFixtures.copyInto(sourceRoot, "Order");
+
+        Path malformed = sourceRoot.resolve("org/openapitools/entity/Product.java");
+        Files.createDirectories(malformed.getParent());
+        Files.writeString(malformed, "package org.openapitools.entity\npublic class Product {}\n");
+
+        Throwable rootCause = rootCauseOf(() ->
+                AllcrudGenerator.generate(new GenerationRequest(
+                        SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
+                        Set.of(GeneratedLayer.POJO),
+                        Map.of(GeneratedLayer.POJO, "org.openapitools.model"),
+                        OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER)));
+
+        assertTrue(rootCause instanceof IllegalStateException,
+                "Expected root cause to be IllegalStateException, was: " + rootCause.getClass().getName());
+        assertTrue(rootCause.getMessage().contains("Expected first line"),
+                "Expected the malformed-package-line message, was: " + rootCause.getMessage());
+    }
+
     private Throwable rootCauseOf(Executable executable) {
         Throwable wrapper = assertThrows(RuntimeException.class, executable);
         Throwable rootCause = wrapper;

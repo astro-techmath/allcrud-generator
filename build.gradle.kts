@@ -44,7 +44,21 @@ sonar {
         // reports - Sonar reads the same XML and, for any class absent from it, treats "absent"
         // as "0% covered" rather than "excluded on purpose". Those are different concepts to
         // Sonar, so the exclusion has to be declared here too, not just at the JaCoCo level.
-        property("sonar.coverage.exclusions", "src/main/java/com/techmath/allcrud/generator/IoExceptions.java")
+        // AllcrudGenerateTask/AllcrudGeneratorPlugin (allcrud-generator-gradle-plugin
+        // subproject) are genuinely exercised for real, not untested - see
+        // AllcrudGeneratorPluginFunctionalTest, which applies the plugin and runs both
+        // generateAllcrud and build via real GradleRunner/TestKit. They show 0% anyway because
+        // TestKit forks a separate Gradle daemon by default, outside the JaCoCo agent attached
+        // to that test's own JVM. The documented fix (GradleRunner.withDebug(true), running the
+        // build in-process instead) was tried and confirmed broken here: withPluginClasspath()
+        // under in-process execution doesn't expose the plugin's classes to the fixture's own
+        // buildscript compilation (an "Unresolved reference" on the plugin's own extension type,
+        // not just its Kotlin DSL accessor sugar) - a real TestKit/Kotlin-DSL limitation, not a
+        // gap this project's own tests can close without risking the passing tests that already
+        // prove this code works.
+        property("sonar.coverage.exclusions", "src/main/java/com/techmath/allcrud/generator/IoExceptions.java," +
+                "allcrud-generator-gradle-plugin/src/main/java/com/techmath/allcrud/generator/gradle/AllcrudGenerateTask.java," +
+                "allcrud-generator-gradle-plugin/src/main/java/com/techmath/allcrud/generator/gradle/AllcrudGeneratorPlugin.java")
     }
 }
 

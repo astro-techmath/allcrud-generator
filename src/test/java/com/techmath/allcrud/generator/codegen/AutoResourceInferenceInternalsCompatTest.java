@@ -90,6 +90,35 @@ class AutoResourceInferenceInternalsCompatTest {
     }
 
     @Test
+    void referencesSchemaReturnsFalseWhenRequestBodyRefIsUnresolvable() throws Exception {
+        // AutoResourceInferenceCompatTest#itemPathMatchedOnlyViaRequestBodySchemaIsStillInferred
+        // only covers requestBody != null resolving to a real, matching schema - never the case
+        // where ModelUtils.getReferencedRequestBody itself can't resolve the $ref (a dangling
+        // reference in the spec). Confirmed empirically (not assumed) that this returns null
+        // rather than throwing, which is what lets referencesSchema's requestSchema ternary and
+        // its schemaName.equals(null) check both fall through to false safely.
+        io.swagger.v3.oas.models.PathItem itemPathItem = new io.swagger.v3.oas.models.PathItem();
+        Operation putOperation = new Operation();
+        io.swagger.v3.oas.models.parameters.RequestBody danglingRef = new io.swagger.v3.oas.models.parameters.RequestBody();
+        danglingRef.set$ref("#/components/requestBodies/DoesNotExist");
+        putOperation.setRequestBody(danglingRef);
+        itemPathItem.setPut(putOperation);
+
+        assertFalse(invokeReferencesSchema(new OpenAPI(), itemPathItem, "Product"));
+    }
+
+    @Test
+    void schemaRefNameReturnsNullForInlineSchemaWithNoRef() throws Exception {
+        // Every other referencesSchema/schemaRefName test's schemas are $ref'd - schema != null
+        // but schema.get$ref() == null (an inline, non-component schema) never got exercised on
+        // its own, only the schema == null short-circuit and the has-a-ref path.
+        Schema<Object> inlineSchema = new Schema<>();
+        inlineSchema.setType("string");
+
+        assertNull(invokeSchemaRefName(inlineSchema));
+    }
+
+    @Test
     void usesUriReturnsFalseForNonUriProperty() throws Exception {
         CodegenProperty property = new CodegenProperty();
         property.dataType = "String";
@@ -207,6 +236,12 @@ class AutoResourceInferenceInternalsCompatTest {
                 "referencesSchema", OpenAPI.class, io.swagger.v3.oas.models.PathItem.class, String.class);
         method.setAccessible(true);
         return unwrap(() -> (Boolean) method.invoke(codegen, openAPI, itemPathItem, schemaName));
+    }
+
+    private String invokeSchemaRefName(Schema<?> schema) throws Exception {
+        Method method = AllcrudSpringCodegen.class.getDeclaredMethod("schemaRefName", Schema.class);
+        method.setAccessible(true);
+        return unwrap(() -> (String) method.invoke(codegen, schema));
     }
 
     private boolean invokeUsesUri(CodegenProperty property) throws Exception {

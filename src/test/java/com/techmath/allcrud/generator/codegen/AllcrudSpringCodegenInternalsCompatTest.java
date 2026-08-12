@@ -6,6 +6,7 @@ import org.openapitools.codegen.CodegenOperation;
 import org.openapitools.codegen.CodegenParameter;
 import org.openapitools.codegen.CodegenProperty;
 import org.openapitools.codegen.model.ModelMap;
+import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
 
@@ -152,6 +153,116 @@ class AllcrudSpringCodegenInternalsCompatTest {
     }
 
     @Test
+    void postProcessModelsAccumulatesUriAndJavaUtilImportFlagsAcrossVars() {
+        // needsUriImport/needsJavaUtilImport are single accumulators across every property of
+        // every model postProcessModels sees (declared once, outside the models loop) - every
+        // real spec fixture used elsewhere in this suite either has no URI/container/byte[]
+        // property at all, or has one in isolation, so several combinations of
+        // "was the accumulator already true when this property was evaluated" never got
+        // exercised. Property order here is deliberate: plain (both flags false,false) is
+        // first, then isByteArray (needsJavaUtilImport still false when evaluated - covers its
+        // own false-then-true transition), then a non-URI container (needsJavaUtilImport
+        // already true - covers the short-circuit branch of that OR chain, and covers usesUri's
+        // own "items present but not URI" case), then a direct URI scalar (needsUriImport's own
+        // false-then-true transition), then one more plain property (needsUriImport already
+        // true - covers ITS short-circuit branch too).
+        CodegenProperty plainBefore = new CodegenProperty();
+        plainBefore.dataType = "String";
+
+        CodegenProperty byteArrayProperty = new CodegenProperty();
+        byteArrayProperty.dataType = "byte[]";
+        byteArrayProperty.isByteArray = true;
+
+        CodegenProperty nonUriContainer = new CodegenProperty();
+        nonUriContainer.dataType = "List";
+        nonUriContainer.isContainer = true;
+        nonUriContainer.items = new CodegenProperty();
+        nonUriContainer.items.dataType = "String";
+
+        CodegenProperty uriScalar = new CodegenProperty();
+        uriScalar.dataType = "URI";
+
+        CodegenProperty plainAfter = new CodegenProperty();
+        plainAfter.dataType = "String";
+
+        CodegenModel model = new CodegenModel();
+        model.allVars = new ArrayList<>();
+        model.vars = List.of(plainBefore, byteArrayProperty, nonUriContainer, uriScalar, plainAfter);
+
+        ModelMap modelMap = new ModelMap();
+        modelMap.setModel(model);
+
+        ModelsMap modelsMap = new ModelsMap();
+        modelsMap.setModels(List.of(modelMap));
+
+        AllcrudSpringCodegen codegen = new AllcrudSpringCodegen();
+        ModelsMap result = codegen.postProcessModels(modelsMap);
+
+        assertEquals(Boolean.TRUE, result.get(AllcrudSpringCodegen.ALLCRUD_NEEDS_URI_IMPORT));
+        assertEquals(Boolean.TRUE, result.get(AllcrudSpringCodegen.ALLCRUD_NEEDS_JAVA_UTIL_IMPORT));
+    }
+
+    @Test
+    void postProcessModelsSetsJavaUtilImportFlagFromContainerPropertyAlone() {
+        // needsJavaUtilImport's OR chain is "accumulator || isContainer || isByteArray" - the
+        // test above always reaches isContainer with the accumulator already true (from an
+        // earlier isByteArray property), so isContainer's own true outcome, evaluated while the
+        // accumulator is still false, never got exercised on its own. A fresh
+        // postProcessModels call (fresh accumulator) with a container property first is the
+        // only way to isolate it, since the accumulator persists across every property once set.
+        CodegenProperty nonUriContainer = new CodegenProperty();
+        nonUriContainer.dataType = "List";
+        nonUriContainer.isContainer = true;
+
+        CodegenModel model = new CodegenModel();
+        model.allVars = new ArrayList<>();
+        model.vars = List.of(nonUriContainer);
+
+        ModelMap modelMap = new ModelMap();
+        modelMap.setModel(model);
+
+        ModelsMap modelsMap = new ModelsMap();
+        modelsMap.setModels(List.of(modelMap));
+
+        ModelsMap result = new AllcrudSpringCodegen().postProcessModels(modelsMap);
+
+        assertEquals(Boolean.TRUE, result.get(AllcrudSpringCodegen.ALLCRUD_NEEDS_JAVA_UTIL_IMPORT));
+    }
+
+    @Test
+    void processOptsDefaultsToVoStyleWhenPojoNamingStylePropertyNeverSet() {
+        // AllcrudGenerator always sets ALLCRUD_POJO_NAMING_STYLE to either "VO" or "DTO" before
+        // calling processOpts() - every real generation run exercises the non-null ternary
+        // branch either way, never the null-defaults-to-VO_STYLE one. Same "only reachable by
+        // driving AllcrudSpringCodegen directly" character as resolveBasePathDefaultsToNoPrefixWhenPrefixNeverSet
+        // above.
+        AllcrudSpringCodegen codegen = new AllcrudSpringCodegen();
+
+        codegen.processOpts();
+
+        assertEquals(Boolean.FALSE, codegen.additionalProperties().get(AllcrudSpringCodegen.ALLCRUD_USE_DTO));
+    }
+
+    @Test
+    void resolveEntityPackageThrowsWhenSourceRootIsNotADirectory() throws Exception {
+        // Every other resolveEntityPackage test points ALLCRUD_SOURCE_ROOT at a real directory -
+        // Files.isDirectory(sourceRoot)'s false branch (a path that doesn't exist, or exists but
+        // isn't a directory) never got exercised, only its true branch. Falls through to the same
+        // "not found under" message as the missing-file case, via a different code path
+        // (List.of() short-circuit instead of an empty filtered stream).
+        Path notADirectory = Files.createTempFile("allcrud-source-root-not-a-directory", ".txt");
+
+        AllcrudSpringCodegen codegen = new AllcrudSpringCodegen();
+        codegen.additionalProperties().put(AllcrudSpringCodegen.ALLCRUD_SOURCE_ROOT, notADirectory.toString());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> invokeResolveEntityPackage(codegen, "Product"));
+
+        assertTrue(ex.getMessage().contains("not found under"),
+                "Expected the not-found message, was: " + ex.getMessage());
+    }
+
+    @Test
     void resolveEntityPackageThrowsWhenSourceRootPropertyNeverSet() throws Exception {
         // AllcrudGenerator always sets ALLCRUD_SOURCE_ROOT before generation runs - this only
         // happens if AllcrudSpringCodegen is driven directly, bypassing AllcrudGenerator, same
@@ -226,6 +337,116 @@ class AllcrudSpringCodegenInternalsCompatTest {
         assertTrue(codegen.confirmedResourceNames().contains("Widget"),
                 "Expected the second (matching) operation to still resolve Widget as a confirmed "
                         + "resource despite the first operation not matching anything");
+    }
+
+    @Test
+    void postProcessOperationsWithModelsResolvesIdTypeFromOverrideWhenModelHasNoIdProperty() {
+        // IdTypeOverrideCompatTest's Widget fixture has a real "id" property AND an override -
+        // the override there just wins over the schema-derived type, never testing the override
+        // as the ONLY source of the ID type. idProperty==null && idTypeOverride==null is covered
+        // by every plain no-id fail-fast test; idProperty==null && idTypeOverride!=null (the
+        // override alone compensating for a genuinely id-less model, so the fail-fast must NOT
+        // fire) was never exercised on its own.
+        Path sourceRoot = createTempDirWithEntity("Gadget");
+
+        io.swagger.v3.oas.models.tags.Tag tag = new io.swagger.v3.oas.models.tags.Tag();
+        tag.setName("gadget");
+
+        CodegenOperation operation = new CodegenOperation();
+        operation.returnBaseType = "Gadget";
+        operation.tags = new ArrayList<>(List.of(tag));
+        operation.vendorExtensions.put("x-allcrud-resource", Boolean.TRUE);
+        operation.vendorExtensions.put("x-allcrud-id-type", "java.util.UUID");
+
+        OperationMap operationMap = new OperationMap();
+        operationMap.setOperation(List.of(operation));
+        operationMap.setClassname("GadgetApi");
+
+        OperationsMap operationsMap = new OperationsMap();
+        operationsMap.setOperation(operationMap);
+        operationsMap.setImports(new ArrayList<>());
+
+        CodegenModel gadgetModel = new CodegenModel();
+        gadgetModel.schemaName = "Gadget";
+        gadgetModel.classname = "Gadget";
+        gadgetModel.allVars = new ArrayList<>();
+
+        ModelMap modelMap = new ModelMap();
+        modelMap.setModel(gadgetModel);
+
+        AllcrudSpringCodegen codegen = new AllcrudSpringCodegen();
+        codegen.additionalProperties().put(AllcrudSpringCodegen.ALLCRUD_SOURCE_ROOT, sourceRoot.toString());
+        codegen.additionalProperties().put(AllcrudSpringCodegen.ALLCRUD_LAYER_PACKAGES,
+                Map.of("POJO", "org.openapitools.model", "REPOSITORY", "org.openapitools.api",
+                        "CONVERTER", "org.openapitools.api", "SERVICE", "org.openapitools.api",
+                        "CONTROLLER", "org.openapitools.api"));
+
+        OperationsMap result = codegen.postProcessOperationsWithModels(operationsMap, List.of(modelMap));
+
+        assertEquals("java.util.UUID", result.get(AllcrudSpringCodegen.ALLCRUD_ID_TYPE));
+        assertTrue(codegen.confirmedResourceNames().contains("Gadget"));
+    }
+
+    @Test
+    void postProcessOperationsWithModelsDoesNotThrowWhenMarkedResourceNeverResolvesToAnyModel() {
+        // The no-id fail-fast's guard is "!resolved && isAllcrudResource &&
+        // firstResourceModelWithoutId != null" - every existing no-id test has
+        // firstResourceModelWithoutId end up non-null (that's what makes the fail-fast fire).
+        // Its own false outcome - a tag explicitly marked x-allcrud-resource but whose operation
+        // never resolves to ANY model at all (no matching returnBaseType or bodyParam - e.g. a
+        // DELETE with a 204/no-content response), so the main loop's own "continue" at
+        // findResourceModel==null fires before firstResourceModelWithoutId is ever touched -
+        // never got exercised: isAllcrudResource is set by a separate loop over the same
+        // operations, independent of whether any of them actually resolves to a model.
+        io.swagger.v3.oas.models.tags.Tag tag = new io.swagger.v3.oas.models.tags.Tag();
+        tag.setName("widget");
+
+        CodegenOperation operation = new CodegenOperation();
+        operation.returnBaseType = null;
+        operation.tags = new ArrayList<>(List.of(tag));
+        operation.vendorExtensions.put("x-allcrud-resource", Boolean.TRUE);
+
+        OperationMap operationMap = new OperationMap();
+        operationMap.setOperation(List.of(operation));
+        operationMap.setClassname("WidgetApi");
+
+        OperationsMap operationsMap = new OperationsMap();
+        operationsMap.setOperation(operationMap);
+        operationsMap.setImports(new ArrayList<>());
+
+        AllcrudSpringCodegen codegen = new AllcrudSpringCodegen();
+
+        OperationsMap result = codegen.postProcessOperationsWithModels(operationsMap, List.of());
+
+        assertTrue(codegen.confirmedResourceNames().isEmpty(),
+                "No operation resolved to a model at all - nothing should be confirmed");
+        assertNull(result.get(AllcrudSpringCodegen.ALLCRUD_ID_TYPE));
+    }
+
+    @Test
+    void isAllcrudResourceReturnsTrueForStringValueRegardlessOfCase() throws Exception {
+        // markInferredResource always sets Boolean.TRUE, and a plain "x-allcrud-resource: true"
+        // in YAML is parsed as a real Boolean by SnakeYAML - the String equalsIgnoreCase fallback
+        // (for a quoted "x-allcrud-resource: \"true\"") never got exercised by any real fixture.
+        CodegenOperation operation = new CodegenOperation();
+        operation.vendorExtensions.put("x-allcrud-resource", "TRUE");
+
+        Method method = AllcrudSpringCodegen.class.getDeclaredMethod("isAllcrudResource", CodegenOperation.class);
+        method.setAccessible(true);
+
+        assertEquals(Boolean.TRUE, method.invoke(new AllcrudSpringCodegen(), operation));
+    }
+
+    private Path createTempDirWithEntity(String entityName) {
+        try {
+            Path sourceRoot = Files.createTempDirectory("allcrud-codegen-internals-" + entityName.toLowerCase());
+            Path entityFile = sourceRoot.resolve("org/openapitools/entity/" + entityName + ".java");
+            Files.createDirectories(entityFile.getParent());
+            Files.writeString(entityFile, "package org.openapitools.entity;\npublic class " + entityName + " {}\n");
+            return sourceRoot;
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     private String invokeResolveEntityPackage(AllcrudSpringCodegen codegen, String entityName) throws Exception {
