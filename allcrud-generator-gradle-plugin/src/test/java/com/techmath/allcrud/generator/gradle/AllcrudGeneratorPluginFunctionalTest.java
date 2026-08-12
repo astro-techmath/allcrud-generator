@@ -70,7 +70,7 @@ class AllcrudGeneratorPluginFunctionalTest {
     }
 
     @Test
-    void generateAllcrudTaskProducesExpectedSources() throws IOException {
+    void generateAllcrudTaskProducesExpectedSources() {
         writeBuildFiles();
 
         BuildResult result = runner("generateAllcrud").build();
@@ -93,7 +93,7 @@ class AllcrudGeneratorPluginFunctionalTest {
     }
 
     @Test
-    void generatedSourcesAreWiredIntoCompileJavaAndCompile() throws IOException {
+    void generatedSourcesAreWiredIntoCompileJavaAndCompile() {
         writeBuildFiles();
 
         BuildResult result = runner("build").build();

@@ -151,8 +151,12 @@ class GlobalExceptionHandlerCompatTest {
 
         Path handler = sourceRoot.resolve("org/openapitools/api/GlobalExceptionHandler.java");
         Files.createDirectories(handler.getParent());
-        String handWritten = "package org.openapitools.api;\n// hand-edited, has custom @ExceptionHandler methods\n"
-                + "public class GlobalExceptionHandler extends com.techmath.allcrud.exception.handler.AbstractGlobalExceptionHandler {\n}\n";
+        String handWritten = """
+                package org.openapitools.api;
+                // hand-edited, has custom @ExceptionHandler methods
+                public class GlobalExceptionHandler extends com.techmath.allcrud.exception.handler.AbstractGlobalExceptionHandler {
+                }
+                """;
         Files.writeString(handler, handWritten);
 
         Path yml = writeYaml("""

@@ -263,7 +263,7 @@ class AllcrudSpringCodegenInternalsCompatTest {
     }
 
     @Test
-    void resolveEntityPackageThrowsWhenSourceRootPropertyNeverSet() throws Exception {
+    void resolveEntityPackageThrowsWhenSourceRootPropertyNeverSet() {
         // AllcrudGenerator always sets ALLCRUD_SOURCE_ROOT before generation runs - this only
         // happens if AllcrudSpringCodegen is driven directly, bypassing AllcrudGenerator, same
         // "reachable, not a mocked failure" character as resolveBasePath's own no-prefix-set

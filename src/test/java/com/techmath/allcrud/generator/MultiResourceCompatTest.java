@@ -170,7 +170,7 @@ class MultiResourceCompatTest {
 
         List<String> classNamesToLoad = generatedSimpleNames.stream()
                 .map(simpleName -> "org.openapitools.api." + simpleName)
-                .collect(Collectors.toList());
+                .toList();
 
         List<Class<?>> loaded = compileAndLoad(sourceFiles, classNamesToLoad.toArray(new String[0]));
 

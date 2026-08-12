@@ -69,7 +69,7 @@ class PojoNamingStyleSwitchCompatTest {
 
         List<String> declaredInterfaceNames = List.of(pojoClass.getInterfaces()).stream()
                 .map(Class::getName)
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(List.of(expectedInterface), declaredInterfaceNames);
 
         Type genericInterface = pojoClass.getGenericInterfaces()[0];

@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -67,7 +68,7 @@ class GeneratedProductVoCompatTest {
             }
         }
 
-        assertTrue(matchingInterface != null,
+        assertNotNull(matchingInterface,
                 "ProductVO should implement AbstractEntityVO<?>, found: " + List.of(productVO.getGenericInterfaces()));
 
         Type idType = ((ParameterizedType) matchingInterface).getActualTypeArguments()[0];

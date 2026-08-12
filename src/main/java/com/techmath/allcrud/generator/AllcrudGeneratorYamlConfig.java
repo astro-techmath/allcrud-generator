@@ -224,7 +224,7 @@ public final class AllcrudGeneratorYamlConfig {
             if (isTestLayer(layer)) {
                 continue;
             }
-            if (enabledByLayer.get(layer) && !packages.containsKey(layer)) {
+            if (enabledByLayer.get(layer).booleanValue() && !packages.containsKey(layer)) {
                 throw configError("generation." + layer.yamlKey(), ymlPath,
                         "is enabled but has no \"package\" configured");
             }
@@ -232,7 +232,7 @@ public final class AllcrudGeneratorYamlConfig {
 
         Set<GeneratedLayer> enabledLayers = new LinkedHashSet<>();
         for (Map.Entry<GeneratedLayer, Boolean> entry : enabledByLayer.entrySet()) {
-            if (entry.getValue()) {
+            if (entry.getValue().booleanValue()) {
                 enabledLayers.add(entry.getKey());
             }
         }
@@ -289,7 +289,7 @@ public final class AllcrudGeneratorYamlConfig {
 
         Set<GeneratedLayer> generate = new LinkedHashSet<>();
         for (Map.Entry<GeneratedLayer, Boolean> entry : resolvedEnabled.entrySet()) {
-            if (entry.getValue()) {
+            if (entry.getValue().booleanValue()) {
                 generate.add(entry.getKey());
             }
         }

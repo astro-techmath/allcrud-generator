@@ -201,22 +201,24 @@ public class AllcrudSpringCodegen extends SpringCodegen {
 
         for (Entry<String, PathItem> collectionEntry : paths.entrySet()) {
             String collectionPath = collectionEntry.getKey();
-            if (hasPathParam(collectionPath)) {
-                continue;
-            }
             PathItem collectionPathItem = collectionEntry.getValue();
-            String schemaName = resolveListItemSchemaName(openAPI, collectionPathItem.getGet());
+            // hasPathParam short-circuits the ternary, same as the original guard - never calls
+            // resolveListItemSchemaName for a path with a param, matching prior behavior exactly.
+            String schemaName = hasPathParam(collectionPath)
+                    ? null
+                    : resolveListItemSchemaName(openAPI, collectionPathItem.getGet());
             if (schemaName == null) {
                 continue;
             }
 
             for (Entry<String, PathItem> itemEntry : paths.entrySet()) {
                 String itemPath = itemEntry.getKey();
-                if (!isItemPathOf(collectionPath, itemPath)) {
-                    continue;
-                }
                 PathItem itemPathItem = itemEntry.getValue();
-                if (!referencesSchema(openAPI, itemPathItem, schemaName)) {
+                // && short-circuits, same as the original 2 guards - never calls referencesSchema
+                // unless isItemPathOf already matched, matching prior behavior exactly.
+                boolean matchesCollectionSchema = isItemPathOf(collectionPath, itemPath)
+                        && referencesSchema(openAPI, itemPathItem, schemaName);
+                if (!matchesCollectionSchema) {
                     continue;
                 }
 
@@ -533,8 +535,8 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // CodegenConfig instance, obtained via ClientOptInput#getConfig()) to decide which staged
     // REPOSITORY/CONVERTER/SERVICE/CONTROLLER/UNIT_TEST/INTEGRATION_TEST files are real,
     // confirmed-resource output versus openapi-generator's own per-tag scaffolding for tags
-    // nobody marked/inferred as an allcrud resource - see the comment on
-    // postProcessOperationsWithModels' "if (!isAllcrudResource) break;" above.
+    // nobody marked/inferred as an allcrud resource - see postProcessOperationsWithModels'
+    // own early break on a non-resource tag, above.
     public Set<String> confirmedResourceNames() {
         return Set.copyOf(confirmedResourceNames);
     }

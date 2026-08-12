@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -84,7 +85,7 @@ class GeneratedControllerAndServiceCompatTest {
                 Class.forName("org.springframework.web.bind.annotation.RequestMapping")
                         .asSubclass(java.lang.annotation.Annotation.class);
         Object annotation = controller.getAnnotation(requestMappingClass);
-        assertTrue(annotation != null, "Expected @RequestMapping on " + controller.getName());
+        assertNotNull(annotation, "Expected @RequestMapping on " + controller.getName());
 
         String[] paths = (String[]) requestMappingClass.getMethod("value").invoke(annotation);
         assertEquals(List.of("/product"), List.of(paths));
