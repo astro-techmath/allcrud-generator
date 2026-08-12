@@ -439,8 +439,18 @@ public class AllcrudSpringCodegen extends SpringCodegen {
      * where the "id" property isn't present or isn't a reliable signal - it is not the main
      * mechanism.
      */
+    // java:S3776 (Cognitive Complexity) and java:S135 (multiple break/continue in the main loop
+    // below) both flag this method - already refused twice, on purpose, not an oversight:
+    // the main loop has 2 continue + 2 break intertwined with real side effects (resolved,
+    // confirmedResourceNames, several objs.put calls, entityNameByApiName) built up across
+    // iterations. Collapsing it to a single exit point would mean extracting a per-operation
+    // helper returning some multi-value result/sentinel just to thread those side effects back
+    // out in the right order - real behavior-change risk in the method this project's test
+    // suite spent the most effort hardening (see EntityResolutionCompatTest,
+    // AllcrudSpringCodegenInternalsCompatTest's postProcessOperationsWithModels* tests). The
+    // metric improvement isn't worth that risk.
     @Override
-    public OperationsMap postProcessOperationsWithModels(OperationsMap objs, List<ModelMap> allModels) {
+    public OperationsMap postProcessOperationsWithModels(OperationsMap objs, List<ModelMap> allModels) { // NOSONAR java:S3776
         objs = super.postProcessOperationsWithModels(objs, allModels);
 
         Map<String, CodegenModel> modelsByClassname = toModelsByClassname(allModels);
@@ -461,7 +471,9 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         CodegenModel firstResourceModelWithoutId = null;
         boolean resolved = false;
 
-        for (CodegenOperation operation : operations.getOperation()) {
+        // 2 continue + 2 break, deliberately - see the NOSONAR java:S3776 comment on this
+        // method's own declaration above for why.
+        for (CodegenOperation operation : operations.getOperation()) { // NOSONAR java:S135
             CodegenModel resourceModel = findResourceModel(operation, modelsByClassname);
             if (resourceModel == null) {
                 continue;
