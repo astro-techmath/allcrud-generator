@@ -122,17 +122,21 @@ class AutoResourceInferenceCompatTest {
         // postProcessOperationsWithModels throws in its own RuntimeException (same wrapping
         // proven empirically for the plain "no id" case, see the fail-fast's own tests) - the
         // IllegalStateException we actually threw is the root cause, not the top-level type.
-        RuntimeException wrapper = assertThrows(RuntimeException.class, () ->
-                AllcrudGenerator.generate(new GenerationRequest(
-                        AUTO_RESOURCE_NO_ID_SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
-                        Set.of(GeneratedLayer.values()),
-                        Map.of(
-                                GeneratedLayer.POJO, "org.openapitools.model",
-                                GeneratedLayer.CONTROLLER, "org.openapitools.api",
-                                GeneratedLayer.SERVICE, "org.openapitools.api",
-                                GeneratedLayer.REPOSITORY, "org.openapitools.api",
-                                GeneratedLayer.CONVERTER, "org.openapitools.api"),
-                        OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER)));
+        // Constructed outside the lambda passed to assertThrows below - same reasoning as
+        // AllcrudGeneratorInternalsCompatTest's equivalent fix: keeps the lambda down to the
+        // single invocation actually under test.
+        GenerationRequest request = new GenerationRequest(
+                AUTO_RESOURCE_NO_ID_SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
+                Set.of(GeneratedLayer.values()),
+                Map.of(
+                        GeneratedLayer.POJO, "org.openapitools.model",
+                        GeneratedLayer.CONTROLLER, "org.openapitools.api",
+                        GeneratedLayer.SERVICE, "org.openapitools.api",
+                        GeneratedLayer.REPOSITORY, "org.openapitools.api",
+                        GeneratedLayer.CONVERTER, "org.openapitools.api"),
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER);
+
+        RuntimeException wrapper = assertThrows(RuntimeException.class, () -> AllcrudGenerator.generate(request));
 
         Throwable rootCause = wrapper;
         while (rootCause.getCause() != null) {

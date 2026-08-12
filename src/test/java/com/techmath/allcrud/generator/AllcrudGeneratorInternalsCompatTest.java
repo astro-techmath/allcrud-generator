@@ -36,12 +36,17 @@ class AllcrudGeneratorInternalsCompatTest {
         // reach AllcrudGenerator (see its own "is enabled but has no package" check), but
         // AllcrudGenerator.generate() is a public entrypoint a caller can invoke directly with
         // a hand-built GenerationRequest that skips yml entirely.
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
-                AllcrudGenerator.generate(new GenerationRequest(
-                        SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
-                        Set.of(GeneratedLayer.CONTROLLER),
-                        Map.of(),
-                        OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER)));
+        // Constructed outside the lambda passed to assertThrows below - keeps that lambda down
+        // to the single invocation actually under test (generate()), not also the
+        // GenerationRequest constructor, which is what the rule wants unambiguous.
+        GenerationRequest request = new GenerationRequest(
+                SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
+                Set.of(GeneratedLayer.CONTROLLER),
+                Map.of(),
+                OnRegenerate.PRESERVE, Map.of(), "", EntityFixtures.NO_EXCEPTION_HANDLER);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> AllcrudGenerator.generate(request));
 
         assertTrue(ex.getMessage().contains("No target package configured"),
                 "Expected the no-target-package message, was: " + ex.getMessage());

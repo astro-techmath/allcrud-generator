@@ -83,8 +83,21 @@ import java.util.Set;
 // FINAL absolute @RequestMapping path for that resource - see ResourceOverride.
 public final class AllcrudGeneratorYamlConfig {
 
+    // YAML key names - same literal, same meaning (a key in the parsed yml map) everywhere it
+    // appears in this class, confirmed one by one before unifying (S1192: each was a real
+    // duplicate, not coincidentally-equal text with a different meaning depending on context).
+    private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_PACKAGE = "package";
+    private static final String KEY_ON_REGENERATE = "onRegenerate";
+    private static final String KEY_POJO_NAMING_STYLE = "pojoNamingStyle";
+    private static final String KEY_ROUTING = "routing";
+    private static final String KEY_GENERATION = "generation";
+    private static final String KEY_RESOURCES = "resources";
+    private static final String KEY_EXCEPTION_HANDLER = "exceptionHandler";
+    private static final String KEY_BASE_PATH = "basePath";
+
     private static final Set<String> ROOT_ALLOWED_KEYS =
-            Set.of("pojoNamingStyle", "routing", "exceptionHandler", "generation", "resources");
+            Set.of(KEY_POJO_NAMING_STYLE, KEY_ROUTING, KEY_EXCEPTION_HANDLER, KEY_GENERATION, KEY_RESOURCES);
 
     private static final Set<String> GENERATION_ALLOWED_KEYS = layerKeys();
     private static final Set<String> RESOURCE_ALLOWED_KEYS = withBasePath(layerKeys());
@@ -92,15 +105,15 @@ public final class AllcrudGeneratorYamlConfig {
     // "package" is deliberately absent here (unlike POJO_LAYER_KEYS/PRODUCTION_LAYER_KEYS
     // below) - see the class-level comment's generation.unitTest/integrationTest entries for
     // why a GLOBAL fixed package for these two layers would be wrong.
-    private static final Set<String> GLOBAL_TEST_LAYER_ALLOWED_KEYS = Set.of("enabled");
+    private static final Set<String> GLOBAL_TEST_LAYER_ALLOWED_KEYS = Set.of(KEY_ENABLED);
     // Per-resource, unitTest/integrationTest DO accept "package" - a pointwise override, not a
     // global default, same mechanism as every other layer's per-resource package override.
-    private static final Set<String> RESOURCE_TEST_LAYER_ALLOWED_KEYS = Set.of("enabled", "package");
-    private static final Set<String> PRODUCTION_LAYER_ALLOWED_KEYS = Set.of("enabled", "package");
-    private static final Set<String> POJO_LAYER_ALLOWED_KEYS = Set.of("enabled", "package", "onRegenerate");
+    private static final Set<String> RESOURCE_TEST_LAYER_ALLOWED_KEYS = Set.of(KEY_ENABLED, KEY_PACKAGE);
+    private static final Set<String> PRODUCTION_LAYER_ALLOWED_KEYS = Set.of(KEY_ENABLED, KEY_PACKAGE);
+    private static final Set<String> POJO_LAYER_ALLOWED_KEYS = Set.of(KEY_ENABLED, KEY_PACKAGE, KEY_ON_REGENERATE);
 
     private static final Set<String> ROUTING_ALLOWED_KEYS = Set.of("basePathPrefix");
-    private static final Set<String> EXCEPTION_HANDLER_ALLOWED_KEYS = Set.of("enabled", "package", "className");
+    private static final Set<String> EXCEPTION_HANDLER_ALLOWED_KEYS = Set.of(KEY_ENABLED, KEY_PACKAGE, "className");
     private static final String DEFAULT_EXCEPTION_HANDLER_CLASS_NAME = "GlobalExceptionHandler";
 
     private final PojoNamingStyle pojoNamingStyle;
@@ -150,9 +163,9 @@ public final class AllcrudGeneratorYamlConfig {
         GenerationSection generation = parseGeneration(root, ymlPath);
 
         Map<String, ResourceOverride> resourceOverrides = new LinkedHashMap<>();
-        Object resourcesNode = root.get("resources");
+        Object resourcesNode = root.get(KEY_RESOURCES);
         if (resourcesNode != null) {
-            Map<String, Object> resources = requireMap(resourcesNode, "resources", ymlPath);
+            Map<String, Object> resources = requireMap(resourcesNode, KEY_RESOURCES, ymlPath);
             for (Map.Entry<String, Object> entry : resources.entrySet()) {
                 String resourceName = entry.getKey();
                 String location = "resources." + resourceName;
@@ -185,8 +198,8 @@ public final class AllcrudGeneratorYamlConfig {
 
     private static GenerationSection parseGeneration(Map<String, Object> root, Path ymlPath) {
         Map<String, Object> generationNode =
-                requireMap(requireNonNull(root.get("generation"), "generation", ymlPath), "generation", ymlPath);
-        requireOnlyKeys(generationNode, GENERATION_ALLOWED_KEYS, "generation", ymlPath);
+                requireMap(requireNonNull(root.get(KEY_GENERATION), KEY_GENERATION, ymlPath), KEY_GENERATION, ymlPath);
+        requireOnlyKeys(generationNode, GENERATION_ALLOWED_KEYS, KEY_GENERATION, ymlPath);
 
         Map<GeneratedLayer, Boolean> enabledByLayer = new LinkedHashMap<>();
         Map<GeneratedLayer, String> packages = new LinkedHashMap<>();
@@ -206,20 +219,30 @@ public final class AllcrudGeneratorYamlConfig {
             requireOnlyKeys(layerNode, globalAllowedKeysFor(layer), location, ymlPath);
 
             boolean enabled = defaultEnabled;
-            if (layerNode.containsKey("enabled")) {
-                enabled = requireBoolean(layerNode.get("enabled"), location + ".enabled", ymlPath);
+            if (layerNode.containsKey(KEY_ENABLED)) {
+                enabled = requireBoolean(layerNode.get(KEY_ENABLED), location + ".enabled", ymlPath);
             }
             enabledByLayer.put(layer, enabled);
 
-            if (layerNode.containsKey("package")) {
-                packages.put(layer, requireString(layerNode.get("package"), location + ".package", ymlPath));
+            if (layerNode.containsKey(KEY_PACKAGE)) {
+                packages.put(layer, requireString(layerNode.get(KEY_PACKAGE), location + ".package", ymlPath));
             }
 
             if (layer == GeneratedLayer.POJO) {
-                defaultPojoOnRegenerate = parseOnRegenerateValue(layerNode.get("onRegenerate"), location, ymlPath);
+                defaultPojoOnRegenerate = parseOnRegenerateValue(layerNode.get(KEY_ON_REGENERATE), location, ymlPath);
             }
         }
 
+        validateGenerationLayerPackages(enabledByLayer, packages, ymlPath);
+
+        Set<GeneratedLayer> enabledLayers = resolveEnabledLayers(enabledByLayer);
+        validateLayerDependencies(enabledLayers, KEY_GENERATION, ymlPath);
+
+        return new GenerationSection(Set.copyOf(enabledLayers), Map.copyOf(packages), defaultPojoOnRegenerate);
+    }
+
+    private static void validateGenerationLayerPackages(
+            Map<GeneratedLayer, Boolean> enabledByLayer, Map<GeneratedLayer, String> packages, Path ymlPath) {
         for (GeneratedLayer layer : GeneratedLayer.values()) {
             if (isTestLayer(layer)) {
                 continue;
@@ -229,16 +252,18 @@ public final class AllcrudGeneratorYamlConfig {
                         "is enabled but has no \"package\" configured");
             }
         }
+    }
 
+    // Shared by parseGeneration and parseResource - both reduce a Map<GeneratedLayer, Boolean>
+    // down to the set of layers whose value is true, identical logic either way.
+    private static Set<GeneratedLayer> resolveEnabledLayers(Map<GeneratedLayer, Boolean> enabledByLayer) {
         Set<GeneratedLayer> enabledLayers = new LinkedHashSet<>();
         for (Map.Entry<GeneratedLayer, Boolean> entry : enabledByLayer.entrySet()) {
             if (entry.getValue().booleanValue()) {
                 enabledLayers.add(entry.getKey());
             }
         }
-        validateLayerDependencies(enabledLayers, "generation", ymlPath);
-
-        return new GenerationSection(Set.copyOf(enabledLayers), Map.copyOf(packages), defaultPojoOnRegenerate);
+        return enabledLayers;
     }
 
     // resources.<name> - cascades each of the 7 layers' "enabled" independently (resource's own
@@ -261,45 +286,46 @@ public final class AllcrudGeneratorYamlConfig {
                 Map<String, Object> layerNode = requireMap(layerNodeRaw, layerLocation, ymlPath);
                 requireOnlyKeys(layerNode, resourceAllowedKeysFor(layer), layerLocation, ymlPath);
 
-                if (layerNode.containsKey("enabled")) {
-                    enabled = requireBoolean(layerNode.get("enabled"), layerLocation + ".enabled", ymlPath);
+                if (layerNode.containsKey(KEY_ENABLED)) {
+                    enabled = requireBoolean(layerNode.get(KEY_ENABLED), layerLocation + ".enabled", ymlPath);
                 }
-                if (layerNode.containsKey("package")) {
-                    packageOverrides.put(layer, requireString(layerNode.get("package"), layerLocation + ".package", ymlPath));
+                if (layerNode.containsKey(KEY_PACKAGE)) {
+                    packageOverrides.put(layer, requireString(layerNode.get(KEY_PACKAGE), layerLocation + ".package", ymlPath));
                 }
-                if (layer == GeneratedLayer.POJO && layerNode.containsKey("onRegenerate")) {
-                    pojoOnRegenerate = parseOnRegenerateValue(layerNode.get("onRegenerate"), layerLocation, ymlPath);
+                if (layer == GeneratedLayer.POJO && layerNode.containsKey(KEY_ON_REGENERATE)) {
+                    pojoOnRegenerate = parseOnRegenerateValue(layerNode.get(KEY_ON_REGENERATE), layerLocation, ymlPath);
                 }
             }
 
             resolvedEnabled.put(layer, enabled);
 
-            // Eager, per-resource check: a production layer enabled for THIS resource (whether
-            // by its own override or by inheriting the global default) needs a resolvable
-            // package - either this resource's own override, or the global one. unitTest/
-            // integrationTest are exempt: they always have a dynamic fallback available
-            // (the sibling service/controller package), never a missing-package failure mode.
-            if (enabled && !isTestLayer(layer)
-                    && !packageOverrides.containsKey(layer) && !generation.packages().containsKey(layer)) {
-                throw configError(layerLocation, ymlPath,
-                        "is enabled for this resource but no \"package\" is configured for it, "
-                                + "here or in generation." + layer.yamlKey());
-            }
+            requireResourceLayerHasPackage(layer, layerLocation, enabled, packageOverrides, generation, ymlPath);
         }
 
-        Set<GeneratedLayer> generate = new LinkedHashSet<>();
-        for (Map.Entry<GeneratedLayer, Boolean> entry : resolvedEnabled.entrySet()) {
-            if (entry.getValue().booleanValue()) {
-                generate.add(entry.getKey());
-            }
-        }
+        Set<GeneratedLayer> generate = resolveEnabledLayers(resolvedEnabled);
         validateLayerDependencies(generate, location, ymlPath);
 
-        String basePath = resourceNode.containsKey("basePath")
-                ? requireString(resourceNode.get("basePath"), location + ".basePath", ymlPath)
+        String basePath = resourceNode.containsKey(KEY_BASE_PATH)
+                ? requireString(resourceNode.get(KEY_BASE_PATH), location + ".basePath", ymlPath)
                 : null;
 
         return new ResourceOverride(Set.copyOf(generate), pojoOnRegenerate, basePath, Map.copyOf(packageOverrides));
+    }
+
+    // Eager, per-resource check: a production layer enabled for THIS resource (whether by its
+    // own override or by inheriting the global default) needs a resolvable package - either
+    // this resource's own override, or the global one. unitTest/integrationTest are exempt:
+    // they always have a dynamic fallback available (the sibling service/controller package),
+    // never a missing-package failure mode.
+    private static void requireResourceLayerHasPackage(
+            GeneratedLayer layer, String layerLocation, boolean enabled,
+            Map<GeneratedLayer, String> packageOverrides, GenerationSection generation, Path ymlPath) {
+        if (enabled && !isTestLayer(layer)
+                && !packageOverrides.containsKey(layer) && !generation.packages().containsKey(layer)) {
+            throw configError(layerLocation, ymlPath,
+                    "is enabled for this resource but no \"package\" is configured for it, "
+                            + "here or in generation." + layer.yamlKey());
+        }
     }
 
     private static Set<String> globalAllowedKeysFor(GeneratedLayer layer) {
@@ -330,7 +356,7 @@ public final class AllcrudGeneratorYamlConfig {
 
     private static Set<String> withBasePath(Set<String> keys) {
         Set<String> withBasePath = new LinkedHashSet<>(keys);
-        withBasePath.add("basePath");
+        withBasePath.add(KEY_BASE_PATH);
         return withBasePath;
     }
 
@@ -347,16 +373,16 @@ public final class AllcrudGeneratorYamlConfig {
         String targetPackage = null;
         String className = DEFAULT_EXCEPTION_HANDLER_CLASS_NAME;
 
-        Object node = root.get("exceptionHandler");
+        Object node = root.get(KEY_EXCEPTION_HANDLER);
         if (node != null) {
-            Map<String, Object> exceptionHandlerNode = requireMap(node, "exceptionHandler", ymlPath);
-            requireOnlyKeys(exceptionHandlerNode, EXCEPTION_HANDLER_ALLOWED_KEYS, "exceptionHandler", ymlPath);
+            Map<String, Object> exceptionHandlerNode = requireMap(node, KEY_EXCEPTION_HANDLER, ymlPath);
+            requireOnlyKeys(exceptionHandlerNode, EXCEPTION_HANDLER_ALLOWED_KEYS, KEY_EXCEPTION_HANDLER, ymlPath);
 
-            if (exceptionHandlerNode.containsKey("enabled")) {
-                enabled = requireBoolean(exceptionHandlerNode.get("enabled"), "exceptionHandler.enabled", ymlPath);
+            if (exceptionHandlerNode.containsKey(KEY_ENABLED)) {
+                enabled = requireBoolean(exceptionHandlerNode.get(KEY_ENABLED), "exceptionHandler.enabled", ymlPath);
             }
 
-            Object packageRaw = exceptionHandlerNode.get("package");
+            Object packageRaw = exceptionHandlerNode.get(KEY_PACKAGE);
             if (packageRaw != null) {
                 targetPackage = requireString(packageRaw, "exceptionHandler.package", ymlPath);
             }
@@ -372,7 +398,7 @@ public final class AllcrudGeneratorYamlConfig {
         }
 
         if (enabled && targetPackage == null) {
-            throw configError("exceptionHandler", ymlPath,
+            throw configError(KEY_EXCEPTION_HANDLER, ymlPath,
                     "enabled is true (the default) but no package could be resolved for it - "
                             + "either declare \"exceptionHandler.package\" explicitly, or set "
                             + "\"exceptionHandler.enabled: false\" if this project doesn't want a "
@@ -385,23 +411,23 @@ public final class AllcrudGeneratorYamlConfig {
     // Absent "routing" section entirely -> "" (no opinion, e.g. no forced "/api" prefix) -
     // most callers shouldn't have to think about this section at all.
     private static String parseRoutingBasePathPrefix(Map<String, Object> root, Path ymlPath) {
-        Object routingNode = root.get("routing");
+        Object routingNode = root.get(KEY_ROUTING);
         if (routingNode == null) {
             return "";
         }
-        Map<String, Object> routing = requireMap(routingNode, "routing", ymlPath);
-        requireOnlyKeys(routing, ROUTING_ALLOWED_KEYS, "routing", ymlPath);
+        Map<String, Object> routing = requireMap(routingNode, KEY_ROUTING, ymlPath);
+        requireOnlyKeys(routing, ROUTING_ALLOWED_KEYS, KEY_ROUTING, ymlPath);
         Object raw = routing.get("basePathPrefix");
         return raw == null ? "" : requireString(raw, "routing.basePathPrefix", ymlPath);
     }
 
     private static PojoNamingStyle parsePojoNamingStyle(Map<String, Object> root, Path ymlPath) {
-        Object raw = requireNonNull(root.get("pojoNamingStyle"), "pojoNamingStyle", ymlPath);
-        String value = requireString(raw, "pojoNamingStyle", ymlPath);
+        Object raw = requireNonNull(root.get(KEY_POJO_NAMING_STYLE), KEY_POJO_NAMING_STYLE, ymlPath);
+        String value = requireString(raw, KEY_POJO_NAMING_STYLE, ymlPath);
         try {
             return PojoNamingStyle.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw configError("pojoNamingStyle", ymlPath, "must be VO or DTO, found: " + value);
+            throw configError(KEY_POJO_NAMING_STYLE, ymlPath, "must be VO or DTO, found: " + value);
         }
     }
 
@@ -426,41 +452,66 @@ public final class AllcrudGeneratorYamlConfig {
     // hardcodes one on Service (UNIT_TEST requires SERVICE, which cascades to REPOSITORY).
     // Validated eagerly here (at yml load time, one clear message) rather than left to surface
     // as a confusing downstream javac error.
+    // 5 independent, sequential checks (each reads only the immutable "layers" set, no shared
+    // mutable state between them) - split out of what used to be one large method to bring its
+    // Cognitive Complexity back under the project's limit. Order preserved exactly: first
+    // violated check still wins, same as before.
     private static void validateLayerDependencies(Set<GeneratedLayer> layers, String location, Path ymlPath) {
+        requireConverterHasPojo(layers, location, ymlPath);
+        requireControllerHasDependencies(layers, location, ymlPath);
+        requireServiceHasRepository(layers, location, ymlPath);
+        requireIntegrationTestHasController(layers, location, ymlPath);
+        requireUnitTestHasService(layers, location, ymlPath);
+    }
+
+    private static void requireConverterHasPojo(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.CONVERTER) && !layers.contains(GeneratedLayer.POJO)) {
             throw configError(location, ymlPath,
                     "CONVERTER requires POJO to also be generated (missing: pojo for this resource)");
         }
-        if (layers.contains(GeneratedLayer.CONTROLLER)) {
-            List<GeneratedLayer> missing = new java.util.ArrayList<>();
-            if (!layers.contains(GeneratedLayer.SERVICE)) {
-                missing.add(GeneratedLayer.SERVICE);
-            }
-            if (!layers.contains(GeneratedLayer.CONVERTER)) {
-                missing.add(GeneratedLayer.CONVERTER);
-            }
-            if (!layers.contains(GeneratedLayer.POJO)) {
-                missing.add(GeneratedLayer.POJO);
-            }
-            if (!missing.isEmpty()) {
-                throw configError(location, ymlPath,
-                        "CONTROLLER requires " + joinLayerNames(missing) + " to also be generated (missing: "
-                                + joinLayerNames(missing) + " for this resource)");
-            }
+    }
+
+    private static void requireControllerHasDependencies(Set<GeneratedLayer> layers, String location, Path ymlPath) {
+        if (!layers.contains(GeneratedLayer.CONTROLLER)) {
+            return;
         }
+        List<GeneratedLayer> missing = new java.util.ArrayList<>();
+        if (!layers.contains(GeneratedLayer.SERVICE)) {
+            missing.add(GeneratedLayer.SERVICE);
+        }
+        if (!layers.contains(GeneratedLayer.CONVERTER)) {
+            missing.add(GeneratedLayer.CONVERTER);
+        }
+        if (!layers.contains(GeneratedLayer.POJO)) {
+            missing.add(GeneratedLayer.POJO);
+        }
+        if (!missing.isEmpty()) {
+            throw configError(location, ymlPath,
+                    "CONTROLLER requires " + joinLayerNames(missing) + " to also be generated (missing: "
+                            + joinLayerNames(missing) + " for this resource)");
+        }
+    }
+
+    private static void requireServiceHasRepository(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.SERVICE) && !layers.contains(GeneratedLayer.REPOSITORY)) {
             throw configError(location, ymlPath,
                     "SERVICE requires REPOSITORY to also be generated (missing: repository for this resource)");
         }
-        // No separate POJO check here despite integrationTest.mustache referencing POJO
-        // directly: CONTROLLER's own check above already guarantees POJO is present whenever
-        // CONTROLLER passes without throwing, and this block already requires CONTROLLER - so
-        // by the time execution reaches here, POJO's presence is already proven, not just
-        // assumed. A separate check would be dead code, never reachable.
+    }
+
+    // No separate POJO check here despite integrationTest.mustache referencing POJO
+    // directly: CONTROLLER's own check above already guarantees POJO is present whenever
+    // CONTROLLER passes without throwing, and this block already requires CONTROLLER - so
+    // by the time execution reaches here, POJO's presence is already proven, not just
+    // assumed. A separate check would be dead code, never reachable.
+    private static void requireIntegrationTestHasController(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.INTEGRATION_TEST) && !layers.contains(GeneratedLayer.CONTROLLER)) {
             throw configError(location, ymlPath,
                     "INTEGRATION_TEST requires CONTROLLER to also be generated (missing: controller for this resource)");
         }
+    }
+
+    private static void requireUnitTestHasService(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.UNIT_TEST) && !layers.contains(GeneratedLayer.SERVICE)) {
             throw configError(location, ymlPath,
                     "UNIT_TEST requires SERVICE to also be generated (missing: service for this resource)");
