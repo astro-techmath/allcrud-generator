@@ -40,6 +40,8 @@ class AutoResourceInferenceInternalsCompatTest {
 
         // Must not throw despite paths being null - inferAllcrudResources' own early return.
         codegen.preprocessOpenAPI(openAPI);
+
+        assertNull(openAPI.getPaths(), "The early return must not have reinitialized paths into an empty object");
     }
 
     @Test
@@ -163,10 +165,12 @@ class AutoResourceInferenceInternalsCompatTest {
         paths.addPathItem("/widgets", collectionPathItem);
         openAPI.setPaths(paths);
 
-        // Must not throw, and must not mark the path as a resource (no requirement asserted on
-        // vendor extensions here since none would ever be set - just proving the loop iteration
-        // completes normally instead of NPE-ing past a null schemaName).
+        // Must not throw, and must not mark the path as a resource - proving the loop iteration
+        // completes normally instead of NPE-ing past a null schemaName.
         codegen.preprocessOpenAPI(openAPI);
+
+        assertNull(collectionPathItem.getExtensions(),
+                "The collection path must NOT be marked as a resource - it has no matching GET response");
     }
 
     @Test

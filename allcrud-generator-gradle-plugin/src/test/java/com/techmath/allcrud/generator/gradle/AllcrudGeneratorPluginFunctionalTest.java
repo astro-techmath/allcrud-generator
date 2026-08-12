@@ -28,8 +28,13 @@ class AllcrudGeneratorPluginFunctionalTest {
     @TempDir
     Path projectDir;
 
+    // 3 independent fixture setups (spec, config yml, entities) - each writes its own,
+    // never-read-by-another file under projectDir, so there's no real ordering dependency
+    // between them. Merged into one @BeforeEach (JUnit 5 doesn't guarantee execution order
+    // across multiple @BeforeEach methods in the same class without @Order) rather than 3
+    // separate ones relying on declaration order to happen to work.
     @BeforeEach
-    void copySpecFixture() throws IOException {
+    void setUpProjectFixtures() throws IOException {
         Path specTarget = projectDir.resolve("product-example.yaml");
         try (InputStream in = getClass().getResourceAsStream("/product-example.yaml")) {
             if (in == null) {
@@ -37,24 +42,18 @@ class AllcrudGeneratorPluginFunctionalTest {
             }
             Files.copy(in, specTarget, StandardCopyOption.REPLACE_EXISTING);
         }
-    }
 
-    // Real allcrud-generator.yml (packages/defaults/resources), not a hardcoded placeholder -
-    // proves the task actually reads yml-driven config end to end, including a per-resource
-    // override (Order: generate [pojo, controller] only).
-    @BeforeEach
-    void copyConfigFixture() throws IOException {
+        // Real allcrud-generator.yml (packages/defaults/resources), not a hardcoded placeholder -
+        // proves the task actually reads yml-driven config end to end, including a per-resource
+        // override (Order: generate [pojo, controller] only).
         copyResource("/allcrud-generator-example.yml", projectDir.resolve("allcrud-generator.yml"));
-    }
 
-    // Entity generation is out of scope for allcrud-generator's V1 (already decided) -
-    // apiController.mustache/service.mustache reference "Product"/"Order" by a hardcoded
-    // name and package, so something has to provide those classes for compileJava to
-    // resolve against. These are the same TEST FIXTURE - NOT GENERATOR OUTPUT entities
-    // used by the root module's own compat tests (src/test/resources/fixtures), copied
-    // here rather than shared across modules to keep this subproject self-contained.
-    @BeforeEach
-    void copyEntityFixtures() throws IOException {
+        // Entity generation is out of scope for allcrud-generator's V1 (already decided) -
+        // apiController.mustache/service.mustache reference "Product"/"Order" by a hardcoded
+        // name and package, so something has to provide those classes for compileJava to
+        // resolve against. These are the same TEST FIXTURE - NOT GENERATOR OUTPUT entities
+        // used by the root module's own compat tests (src/test/resources/fixtures), copied
+        // here rather than shared across modules to keep this subproject self-contained.
         Path entityDir = projectDir.resolve("src/main/java/org/openapitools/entity");
         Files.createDirectories(entityDir);
         copyResource("/fixtures/Product.java", entityDir.resolve("Product.java"));

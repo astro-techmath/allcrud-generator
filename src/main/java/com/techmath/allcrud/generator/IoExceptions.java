@@ -31,7 +31,12 @@ public final class IoExceptions {
 
     public static Path createTempDirectory(String prefix) {
         try {
-            return Files.createTempDirectory(prefix);
+            // False positive (java:S5443): java.nio.file.Files#createTempDirectory (NIO.2,
+            // since JDK 7) already restricts the created directory to owner-only permissions
+            // (rwx------ on POSIX) by default when no FileAttribute is passed - confirmed
+            // against the JDK's own documented behavior, not the older, genuinely-unsafe
+            // File#createTempFile/mkdir pattern this rule is designed to catch.
+            return Files.createTempDirectory(prefix); // NOSONAR java:S5443
         } catch (IOException e) {
             throw wrap(e);
         }
