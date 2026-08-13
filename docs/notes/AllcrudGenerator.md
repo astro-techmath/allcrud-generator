@@ -225,6 +225,15 @@ literal first line of every one of the 5 templates' output, with nothing
 against. Fails loudly if that ever stops being true rather than silently
 corrupting the file.
 
+## packageOverrides — why the Map is nested one level deeper than basePathOverrides
+
+Nested `Map<String, Map<String, String>>` shape (resourceName -> layer name
+-> package) mirrors `basePathOverrides`' flat `Map<String, String>` one
+level deeper, since a resource can override more than one layer's package
+independently - `basePathOverrides` only ever has one value per resource
+(the whole `@RequestMapping` path), but package overrides need a value per
+layer per resource.
+
 ## registerApiLayerTemplates — service/repository/converter.mustache are brand-new templates
 
 `service.mustache`/`repository.mustache`/`converter.mustache` are brand-new

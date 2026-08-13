@@ -131,9 +131,8 @@ public final class AllcrudGenerator {
         return overrides;
     }
 
-    // resourceName -> layer name (GeneratedLayer#name(), e.g. "SERVICE") -> package. Nested Map
-    // shape mirrors basePathOverrides' flat one but one level deeper, since a resource can
-    // override more than one layer's package independently.
+    // resourceName -> layer name (GeneratedLayer#name(), e.g. "SERVICE") -> package.
+    // See docs/notes/AllcrudGenerator.md#packageoverrides--why-the-map-is-nested-one-level-deeper-than-basepathoverrides
     private static Map<String, Map<String, String>> packageOverrides(GenerationRequest request) {
         Map<String, Map<String, String>> overrides = new LinkedHashMap<>();
         for (Map.Entry<String, ResourceOverride> entry : request.resourceOverrides().entrySet()) {
@@ -188,9 +187,7 @@ public final class AllcrudGenerator {
         StagedFile staged = classify(fileName, request.pojoNamingStyle());
         GeneratedLayer layer = staged.layer();
 
-        // See docs/adr/0008-pojo-schema-driven-not-resource-driven.md - a tag that never
-        // resolved to a confirmed resource gets discarded here instead of reaching sourceRoot;
-        // openapi-generator still rendered it into the staging dir, which is thrown away regardless.
+        // See docs/adr/0008-pojo-schema-driven-not-resource-driven.md
         if (layer != GeneratedLayer.POJO && !confirmedResourceNames.contains(staged.resourceName())) {
             return;
         }

@@ -24,3 +24,9 @@ resource gate that controls the other 4 layers.
 - Disabling a resource's path-level generation (`x-allcrud-resource: false`, or simply never
   marking it) does not stop its POJO from being generated - only the POJO layer's own `enabled`
   flag does that.
+- The gate is enforced at relocation time, not generation time: openapi-generator's staging pass
+  still renders Controller/Service/Repository/Converter for every tag unconditionally (its own
+  pipeline isn't fought here), including tags that never resolved to a confirmed resource. Those
+  staged files are simply discarded before reaching `sourceRoot` (`AllcrudGenerator#relocateOne`)
+  instead of ever being generated conditionally - harmless, since the whole staging directory is
+  thrown away regardless once relocation finishes.
