@@ -45,7 +45,13 @@ jobs:
       - name: Regenerate verification metadata
         run: ./gradlew --write-verification-metadata sha256 build
 
+      # inputs.branch is user-controlled (whoever triggers this workflow) - templated directly
+      # into the run block below, it would be shell-injectable (e.g. a branch name containing
+      # `; rm -rf .` or command substitution). Passed through an env var instead so the shell
+      # only ever sees it as a plain string value, never as script it could parse.
       - name: Commit and push
+        env:
+          BRANCH: ${{ inputs.branch }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -54,5 +60,5 @@ jobs:
             echo "No changes to gradle/verification-metadata.xml - nothing to commit."
           else
             git commit -m "chore: regenerate gradle/verification-metadata.xml"
-            git push origin HEAD:${{ inputs.branch }}
+            git push origin "HEAD:$BRANCH"
           fi
