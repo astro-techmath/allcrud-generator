@@ -1,8 +1,6 @@
-{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
-    file - the stock "spring" generator has no service-layer template at all (it only emits
-    an Api interface + delegate + controller). This file is registered as a per-tag "api
-    template file" via CodegenConfig#apiTemplateFiles() in the generation driver code
-    (see AllcrudGenerator), with output suffix "Service.java".
+{{! See docs/templates-reference.md. Registered as a per-tag "api template file" via
+    CodegenConfig#apiTemplateFiles() in the generation driver code (see AllcrudGenerator), with
+    output suffix "Service.java".
 
     allcrudEntityName / allcrudIdType / allcrudEntityPackage are resolved by
     AllcrudSpringCodegen (a custom CodegenConfig, not the stock "spring" one) - not hardcoded

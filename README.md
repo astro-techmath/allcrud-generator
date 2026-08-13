@@ -19,10 +19,10 @@ Lives in its own repo/artifact so it never becomes a transitive dependency of pr
 
 - **Contract-first**: an OpenAPI spec is the single source of truth for what gets generated - not annotations sprinkled across hand-written classes.
 - **7 artifact types per run**: POJO, Repository, Converter, Service, Controller, a project-wide `exceptionHandler`, and optional `unitTest`/`integrationTest` classes.
-- **Scaffolding, preserved by default**: Repository/Converter/Service/Controller are never overwritten once they exist, so hand-written business logic on top of them survives every regeneration.
+- **Scaffolding, preserved by default**: Repository/Converter/Service/Controller are never overwritten once they exist, so hand-written business logic on top of them survives every regeneration (see [ADR 0001](docs/adr/0001-generate-once-never-overwrite.md)).
 - **POJO overwrite is the one configurable exception**, per resource, via `onRegenerate: preserve` (default) or `overwrite`.
 - **Package placement is configurable per layer, globally**, with a per-resource override escape hatch on all 7 layers when one resource needs to live somewhere different.
-- **`@RequestMapping` base path is configurable** globally (a prefix) or per resource (a final, absolute override).
+- **`@RequestMapping` base path is configurable** globally (a prefix) or per resource (a final, absolute override) (see [ADR 0005](docs/adr/0005-basepath-absolute-not-concatenated.md)).
 - **Automatic resource inference** (`x-allcrud-auto-resource`) is available as an opt-in alternative to marking every path by hand - see the [yml reference](#-allcrud-generatoryml-reference) below.
 - **Fails fast, loudly**, instead of emitting broken Java: a resource with no `id` property is rejected at generation time with a message naming the resource, not a mysterious `javac` error downstream.
 
@@ -453,7 +453,7 @@ Key rules:
 
 > **This is a document-root vendor extension in your OpenAPI spec file** (`api-spec.yaml`, alongside `openapi:`/`info:`/`paths:`) - it is never a key in `allcrud-generator.yml`. It's documented here, next to the rest of the config reference, purely so it's easy to find in one place. See the [Quick Start](#-quick-start)'s spec example and [vendor extensions table](#-openapi-spec-vendor-extensions) for the full walk-through and detection rules.
 
-`x-allcrud-resource` (explicit or inferred) is the actual gate on generation: only a confirmed resource gets a Repository/Converter/Service/Controller. The POJO is the one exception - it's generated from the OpenAPI schema directly, independent of whether any path references it as a CRUD resource.
+`x-allcrud-resource` (explicit or inferred) is the actual gate on generation: only a confirmed resource gets a Repository/Converter/Service/Controller. The POJO is the one exception - it's generated from the OpenAPI schema directly, independent of whether any path references it as a CRUD resource. See [ADR 0002](docs/adr/0002-x-allcrud-resource-gate-and-inference.md).
 
 ---
 
@@ -493,10 +493,10 @@ A full, copy-pasteable `pom.xml` (plugin config + all the dependencies from [Pre
 
 The reasoning behind some of the choices above, for when the "what" isn't enough to predict the "why":
 
-- ✅ **`generation.<layer>.package` is global by default, with a per-resource override as the escape hatch.** A project with hundreds of resources declaring the same 5 package paths hundreds of times over would be pure noise - the global default covers the common case, and `resources.<name>.<layer>.package` exists for the resources that genuinely need to live somewhere else.
+- ✅ **`generation.<layer>.package` is global by default, with a per-resource override as the escape hatch.** A project with hundreds of resources declaring the same 5 package paths hundreds of times over would be pure noise - the global default covers the common case, and `resources.<name>.<layer>.package` exists for the resources that genuinely need to live somewhere else. See [ADR 0003](docs/adr/0003-packages-global-with-resource-override.md).
 - ✅ **Each of the 7 layers toggles independently via its own `enabled` flag, at both the global and per-resource level, instead of a single list a resource replaces wholesale.** A per-resource layer list that either fully replaced or fully inherited the global set couldn't express "disable just this one layer for this one resource" without repeating every other layer's name back verbatim - independent per-layer flags can.
 - ✅ **`exceptionHandler` is the only artifact that defaults to `enabled: true`** (every other artifact defaults to not generating until asked). It corrects a functional gap the generated Controller already implies: without a `GlobalExceptionHandler` registered, Spring's default exception handling returns the wrong HTTP status for exceptions `AbstractGlobalExceptionHandler` already maps (`EntityNotFoundException` → 500 instead of 404, for example) - a status code mismatch that exists regardless of whether you asked for exception handling.
-- ✅ **The Entity is never generated.** Its persistence mapping, inheritance, and auditing concerns belong to the consumer's domain model - the generator's job stops at the boundary the OpenAPI contract actually describes.
+- ✅ **The Entity is never generated.** Its persistence mapping, inheritance, and auditing concerns belong to the consumer's domain model - the generator's job stops at the boundary the OpenAPI contract actually describes. See [ADR 0006](docs/adr/0006-entity-out-of-scope-v1.md).
 - ✅ **`x-allcrud-auto-resource` defaults to `false`.** The generator has been marking resources by explicit `x-allcrud-resource: true` since before inference existed - defaulting inference to on would silently change what an existing, unmodified spec generates. Turning it on is always an explicit choice.
 
 ---

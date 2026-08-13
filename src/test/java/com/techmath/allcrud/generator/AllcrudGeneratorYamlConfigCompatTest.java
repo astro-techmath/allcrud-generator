@@ -12,12 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// Checkpoint 4 of the idempotent-scaffolding rework: proves allcrud-generator.yml parsing
-// (generation/resources) actually drives the already-validated relocate/overwrite logic
-// (checkpoints 1-3) end to end - not just that the yml parses into the right Java values, but
-// that running AllcrudGenerator against a resolved GenerationRequest produces exactly what the
-// yml says: Order's disabled converter/service/controller (pojo+repository only) and Product's
-// pojo-only onRegenerate override.
+// See docs/adr/0001-generate-once-never-overwrite.md - proves allcrud-generator.yml parsing
+// (generation/resources) actually drives the relocate/overwrite logic end to end, not just that
+// the yml parses into the right Java values.
 class AllcrudGeneratorYamlConfigCompatTest {
 
     private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
@@ -142,12 +139,9 @@ class AllcrudGeneratorYamlConfigCompatTest {
 
     @Test
     void controllerWithoutPojoFailsWithClearMessage() throws IOException {
-        // CONVERTER is deliberately absent too (not just POJO) - if it were present without
-        // POJO, the CONVERTER-requires-POJO check above would fire first and this test
-        // wouldn't isolate CONTROLLER's own POJO requirement. With CONVERTER also absent, the
-        // CONTROLLER check's own missing-list must list both - proving CONTROLLER's rule
-        // considers POJO at all (before this fix, this list would only ever have said
-        // "converter", never "pojo").
+        // See docs/adr/0004-layer-dependency-chain.md - CONVERTER is deliberately absent too
+        // (not just POJO): if it were present without POJO, the CONVERTER-requires-POJO check
+        // would fire first and this test wouldn't isolate CONTROLLER's own POJO requirement.
         Path badYml = writeYaml("""
                 pojoNamingStyle: VO
                 generation:

@@ -12,13 +12,11 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// AllcrudSpringCodegen#resolveEntityPackage/readPackageStatement (entity package resolution by
-// scanning sourceRoot for <EntityName>.java) run for every confirmed resource, regardless of
-// which GeneratedLayer set the caller requests - staging always renders all 5 layers per
-// operation unconditionally (see AllcrudGenerator#generate's own comment), so these fail-fasts
-// are reachable through a plain end-to-end AllcrudGenerator.generate() call, no reflection
-// needed. This is the exact contract the README's Known Limitations section promises ("the
-// Entity must exist and compile first") but had never been proven end to end before.
+// See docs/adr/0006-entity-out-of-scope-v1.md. AllcrudSpringCodegen#resolveEntityPackage/
+// readPackageStatement run for every confirmed resource regardless of which GeneratedLayer set
+// the caller requests - staging always renders all 5 layers per operation unconditionally, so
+// these fail-fasts are reachable through a plain end-to-end AllcrudGenerator.generate() call,
+// no reflection needed.
 class EntityResolutionCompatTest {
 
     private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");

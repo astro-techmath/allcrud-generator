@@ -13,26 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-// Public generation entrypoint - not a production entrypoint (CLI, Gradle plugin) by
-// itself yet, that's a separate, not-yet-designed decision. This is the generic,
-// parameterized form of what used to be the test-only ProductExampleGeneration: same
-// CodegenConfigurator/DefaultGenerator invocation, same AllcrudSpringCodegen and
-// custom templates, no design decisions reopened.
+// See docs/notes/AllcrudGenerator.md#allcrudgenerator-is-not-yet-a-production-entrypoint
 public final class AllcrudGenerator {
 
     // Bundled with this generator's own custom templates (pojo/model/repository/
     // converter/service) - not something a caller supplies, unlike specPath/outputDir.
     //
-    // "templates" (not "src/main/resources/templates"): CodegenConfigurator#setTemplateDir
-    // is checked both as a filesystem path AND, transparently, as a classpath resource root
-    // by openapi-generator's GeneratorTemplateContentLocator (no "classpath:" prefix needed -
-    // it just retries the same string via ClassLoader#getResource). "src/main/resources"
-    // is where the templates live in this module's source tree, but Gradle's processResources
-    // strips that prefix when packaging - the jar has them at "templates/*.mustache", so that's
-    // the string that must resolve. The filesystem-relative form only ever worked by accident,
-    // because our own tests happen to run with the CWD at this repo's root; any real caller
-    // (the Gradle plugin included) runs with a different CWD and the filesystem check silently
-    // fails over to this classpath check - see AllcrudGeneratorPluginFunctionalTest.
+    // See docs/notes/AllcrudGenerator.md#template-resolution-filesystem--classpath-via-generatortemplatecontentlocator
+    // for why "templates" (not "src/main/resources/templates") is the string that resolves.
     private static final String TEMPLATE_DIR = "templates";
 
     private AllcrudGenerator() {
@@ -41,113 +29,47 @@ public final class AllcrudGenerator {
     public static void generate(GenerationRequest request) {
         generateGlobalExceptionHandler(request);
 
-        // Staging + move + package rewrite + overwrite policy (idempotent-scaffolding rework):
-        // openapi-generator always runs into a scratch directory first, never directly into
-        // the caller's sourceRoot. Each staged file gets its "package ...;" line (always line
-        // 1 - verified empirically, see relocate()) rewritten to its configured target
-        // package, then is written under sourceRoot at the path that package implies - unless
-        // the target already exists and the per-layer overwrite policy says to leave it alone
-        // (see shouldOverwrite()). yml-driven configuration (allcrud-generator.yml) is not
-        // wired up yet - callers still pass layersToGenerate/packages/pojoOnRegenerate
-        // directly, hardcoded on their end.
+        // See docs/notes/AllcrudGenerator.md#staging--move--package-rewrite-idempotent-scaffolding-design
         Path stagingDir = IoExceptions.createTempDirectory("allcrud-generator-staging");
 
         try {
             CodegenConfigurator configurator = new CodegenConfigurator()
                     // Custom CodegenConfig (see AllcrudSpringCodegen), not the stock "spring"
-                    // generator: resolves allcrudEntityName/allcrudPojoClassName/allcrudIdType
-                    // from the actual OpenAPI model instead of leaving them hardcoded in the
-                    // templates. CodegenConfigLoader#forName falls back to
-                    // Class.forName(name).newInstance() when the name isn't a registered SPI
-                    // generator, so a fully-qualified class name works here directly.
+                    // generator - see docs/notes/AllcrudSpringCodegen.md#codegenconfigloaderforname-fallback
+                    // for why a fully-qualified class name works here directly.
                     .setGeneratorName("com.techmath.allcrud.generator.codegen.AllcrudSpringCodegen")
                     .setInputSpec(request.specPath().toString())
                     .setTemplateDir(TEMPLATE_DIR)
                     .setOutputDir(stagingDir.toString())
-                    // We don't use the JsonNullable-based absent-vs-null distinction, and
-                    // org.openapitools:jackson-databind-nullable isn't a dependency here -
-                    // disabling this avoids an unresolved import in the generated VO/DTO.
+                    // See docs/notes/AllcrudGenerator.md#openapinullable-disabled--no-jackson-databind-nullable-dependency
                     .addAdditionalProperty("openApiNullable", false)
                     .addAdditionalProperty("allcrudPojoNamingStyle", request.pojoNamingStyle().name())
-                    // Baked into the generated @RequestMapping literal by AllcrudSpringCodegen
-                    // (see ALLCRUD_BASE_PATH_PREFIX/ALLCRUD_BASE_PATH_OVERRIDES there) - has to
-                    // happen at codegen time, not in relocate() below, since it's part of the
-                    // Java source text itself, not a file-placement decision.
+                    // See docs/notes/AllcrudGenerator.md#allcrudbasepathprefixoverrides-set-at-codegen-time-not-in-relocate
                     .addAdditionalProperty("allcrudBasePathPrefix", request.basePathPrefix())
                     .addAdditionalProperty("allcrudBasePathOverrides", basePathOverrides(request))
-                    // Cross-layer imports (Controller importing the Entity/POJO/Service/
-                    // Converter it depends on, Service importing Repository, etc.) used to
-                    // either hardcode "org.openapitools.*" or assume "same package, no import
-                    // needed" - both wrong once packages.<layer> in allcrud-generator.yml can
-                    // put each layer in a different package.
-                    //
-                    // allcrudPojoPackage/RepositoryPackage/ConverterPackage/ServicePackage are
-                    // deliberately NOT set here as additionalProperties (unlike a first attempt
-                    // at this): DefaultGenerator#generateApis calls
-                    // operation.putAll(config.additionalProperties()) AFTER
-                    // postProcessOperationsWithModels already ran for that same operation
-                    // (confirmed by reading DefaultGenerator's source, not assumed) - any
-                    // per-resource value AllcrudSpringCodegen#postProcessOperationsWithModels
-                    // puts under one of those 4 exact keys would be silently clobbered right
-                    // back to the global default by that putAll, since it blindly overwrites any
-                    // key present in additionalProperties(). allcrudEntityPackage/allcrudBasePath
-                    // don't hit this because they're NEVER set as additionalProperties at all -
-                    // only ever objs.put() per-resource, so putAll has nothing to clobber for
-                    // those key names. The fix here is the same: the 4 global defaults travel
-                    // under a DIFFERENT key (allcrudLayerPackages, a plain layer-name -> package
-                    // map, read only by AllcrudSpringCodegen, never by a template directly) so
-                    // putAll can't collide with the per-resource-resolved
-                    // allcrudPojoPackage/etc. keys the templates actually read.
+                    // See docs/notes/AllcrudGenerator.md#cross-layer-imports-need-per-layer-packages
+                    // and docs/notes/AllcrudGenerator.md#putall--defaultgeneratorgenerateapis-canonical--see-also-allcrudspringcodegen
                     .addAdditionalProperty("allcrudSourceRoot", request.sourceRoot().toString())
                     .addAdditionalProperty("allcrudLayerPackages", layerPackages(request))
-                    // Per-resource exceptions (ResourceOverride#packageOverrides) to the global
-                    // layer packages just above - resourceName -> layer name -> package. Read by
-                    // AllcrudSpringCodegen#postProcessOperationsWithModels alongside
-                    // allcrudLayerPackages to resolve each of the 4 per-resource, so a
-                    // Controller/Service/Converter importing another layer's class always
-                    // imports the package that layer ACTUALLY landed in after relocate() below -
-                    // not the global default, which would be wrong the instant a resource
-                    // overrides one of its layers' packages.
+                    // See docs/adr/0003-packages-global-with-resource-override.md
+                    // resourceName -> layer name -> package, read by
+                    // AllcrudSpringCodegen#postProcessOperationsWithModels alongside allcrudLayerPackages.
                     .addAdditionalProperty("allcrudPackageOverrides", packageOverrides(request));
 
             ClientOptInput clientOptInput = configurator.toClientOptInput();
 
-            // Always registered, regardless of layersToGenerate: staging generates all 5
-            // layers unconditionally (openapi-generator's own pipeline, not fought here) -
-            // relocateOne() is what filters which ones actually reach sourceRoot.
+            // See docs/notes/AllcrudGenerator.md#registerapilayertemplates-always-registered-regardless-of-layerstogenerate
             registerApiLayerTemplates(clientOptInput);
 
-            // The stock "spring" generator's supporting files (Application main class,
-            // SpringDocConfiguration, ApiUtil, HomeController) don't map to the VO/Repository/
-            // Converter/Service/Controller layer model this project generates - a real consumer
-            // already has its own Application class. None of our 5 custom templates reference
-            // them (verified).
-            //
-            // DefaultGenerator#configureGeneratorProperties reads these 4 GlobalSettings flags
-            // (apis/models/supportingFiles/webhooks) by PRESENCE, not value: if NONE are set, it
-            // defaults all 4 to generate=true; the instant ANY one is set, the other unset ones
-            // default to generate=false individually. So setting SUPPORTING_FILES="false" alone
-            // does NOT disable it (a set property is "on" regardless of its string value for this
-            // particular check) - it silently disables MODELS/APIS instead, since they were left
-            // unset. The fix is the reverse: explicitly mark apis/models as present and leave
-            // supportingFiles unset, so it falls through to the false default in the same branch.
-            //
-            // The value must be "" (empty), NOT "true": APIS/MODELS are dual-purpose - presence
-            // decides the boolean above, but DefaultGenerator#getPropertyAsSet (used elsewhere to
-            // filter which specific models/apis to generate, e.g. "-Dmodels=Product,Order") parses
-            // this SAME string as a CSV set. "true" would be parsed as "only generate a model/api
-            // literally named true", filtering out everything and silently producing zero files -
-            // hit this for real while verifying against 7.23.0's source, not a hypothetical.
+            // See docs/notes/AllcrudGenerator.md#stock-supportingfiles-dont-map-to-this-projects-layer-model
+            // and docs/notes/AllcrudGenerator.md#globalsettings-presence-vs-value--csv-dual-purpose-apismodels
+            // for why apis/models are set to "" here, not left unset or set to "true".
             GlobalSettings.setProperty(CodegenConstants.APIS, "");
             GlobalSettings.setProperty(CodegenConstants.MODELS, "");
 
             new DefaultGenerator().opts(clientOptInput).generate();
 
-            // Same CodegenConfig instance the whole run above just used - ClientOptInput#getConfig()
-            // is deprecated with no replacement yet (see registerApiLayerTemplates below), but it's
-            // still how AllcrudSpringCodegen#confirmedResourceNames (populated during
-            // postProcessOperationsWithModels, which already ran as part of generate() above) gets
-            // read back here, after the fact.
+            // See docs/notes/AllcrudGenerator.md#clientoptinputgetconfig-is-deprecated-with-no-replacement-openapi-generator-7230
             @SuppressWarnings("deprecation")
             AllcrudSpringCodegen codegen = (AllcrudSpringCodegen) clientOptInput.getConfig();
 
@@ -157,18 +79,7 @@ public final class AllcrudGenerator {
         }
     }
 
-    // The one PROJECT-level (not per-resource) artifact this generator produces - runs once,
-    // independent of the OpenAPI spec entirely (no staging dir, no openapi-generator pipeline,
-    // no per-resource classify-by-suffix relocate: there's no resource name or spec content
-    // involved, just package + className from allcrud-generator.yml's "exceptionHandler" block).
-    // "Generate once, never overwrite", no configurable exception - see ExceptionHandlerConfig
-    // for why. A plain Java text block, not a .mustache template: the content has zero
-    // variability beyond package/className substitution, so routing it through the
-    // openapi-generator template/staging machinery built for the 5 per-resource layers would be
-    // needless coupling for no benefit - and would require re-enabling supportingFiles, which
-    // this project deliberately disabled elsewhere in this method (see the GlobalSettings
-    // comment below) because none of the stock supporting files map to this project's layer
-    // model.
+    // See docs/notes/AllcrudGenerator.md#generateglobalexceptionhandler-is-a-plain-text-block-not-a-mustache-template
     private static void generateGlobalExceptionHandler(GenerationRequest request) {
         ExceptionHandlerConfig config = request.exceptionHandler();
         if (!config.enabled()) {
@@ -198,12 +109,7 @@ public final class AllcrudGenerator {
         IoExceptions.writeFile(target, content);
     }
 
-    // layer name (GeneratedLayer#name(), e.g. "SERVICE") -> global package - only the 5 layers
-    // AllcrudSpringCodegen resolves per-resource need to travel this way (see the comment above
-    // this method's call site). CONTROLLER used to be excluded here ("nothing imports the
-    // Controller from another layer") - integrationTest.mustache broke that assumption, so it's
-    // included now too. UNIT_TEST/INTEGRATION_TEST themselves are never in this map: nothing
-    // ever imports "the unit/integration test" class from elsewhere.
+    // See docs/notes/AllcrudGenerator.md#layerpackages-map--controller-inclusion-history
     private static Map<String, String> layerPackages(GenerationRequest request) {
         Map<String, String> byLayerName = new LinkedHashMap<>();
         byLayerName.put(GeneratedLayer.POJO.name(), request.packages().get(GeneratedLayer.POJO));
@@ -255,12 +161,7 @@ public final class AllcrudGenerator {
         }
     }
 
-    // UNIT_TEST/INTEGRATION_TEST have no "packages.<layer>" global entry to fall back to (see
-    // GeneratedLayer's javadoc) - their default is the SIBLING production layer's own resolved
-    // package for this exact resource (SERVICE for UNIT_TEST, CONTROLLER for INTEGRATION_TEST),
-    // itself computed by the same override-then-global rule, recursively - not a flat
-    // "packages.service" global lookup, since the sibling layer might ALSO have a per-resource
-    // override for this resource that should be honored first.
+    // See docs/notes/AllcrudGenerator.md#resolveeffectivepackage--recursive-fallback-for-test-layers
     private static String resolveEffectivePackage(GeneratedLayer layer, String resourceName, GenerationRequest request) {
         ResourceOverride override = request.resourceOverrides().get(resourceName);
         String explicit = override != null && override.packageOverrides() != null
@@ -287,12 +188,9 @@ public final class AllcrudGenerator {
         StagedFile staged = classify(fileName, request.pojoNamingStyle());
         GeneratedLayer layer = staged.layer();
 
-        // POJO is schema-driven, not resource-driven (see AllcrudSpringCodegen#
-        // confirmedResourceNames' own comment) - every other layer assumes a real,
-        // confirmed (explicit or inferred x-allcrud-resource) CRUD resource behind it, so a
-        // tag that never resolved to one gets discarded here instead of reaching sourceRoot.
-        // openapi-generator still rendered it into the staging dir - that's harmless, staging
-        // is thrown away regardless.
+        // See docs/adr/0008-pojo-schema-driven-not-resource-driven.md - a tag that never
+        // resolved to a confirmed resource gets discarded here instead of reaching sourceRoot;
+        // openapi-generator still rendered it into the staging dir, which is thrown away regardless.
         if (layer != GeneratedLayer.POJO && !confirmedResourceNames.contains(staged.resourceName())) {
             return;
         }
@@ -330,13 +228,7 @@ public final class AllcrudGenerator {
         IoExceptions.writeFile(target, rewritten);
     }
 
-    // The fixed table: Repository/Converter/Service/Controller never overwrite an existing
-    // file, no configuration knob - they can carry hand-written business logic (@Query,
-    // custom methods) that a blind overwrite would destroy. Only POJO's policy is
-    // configurable (GenerationRequest#pojoOnRegenerate), because it's expected to stay a
-    // thin mirror of the OpenAPI schema, safe to keep in sync with the contract by default...
-    // except this project defaults pojoOnRegenerate to PRESERVE too (see callers) - overwrite
-    // is strictly opt-in, never assumed.
+    // See docs/adr/0001-generate-once-never-overwrite.md
     private static boolean shouldOverwrite(GeneratedLayer layer, OnRegenerate pojoOnRegenerate) {
         if (layer != GeneratedLayer.POJO) {
             return false;
@@ -344,17 +236,7 @@ public final class AllcrudGenerator {
         return pojoOnRegenerate == OnRegenerate.OVERWRITE;
     }
 
-    // Suffix-based classification of our own template output filenames (ProductVO.java,
-    // ProductController.java, etc) into (resourceName, layer) - resourceName is the suffix
-    // stripped ("Product"), needed to resolve GenerationRequest#resourceOverrides. Order
-    // doesn't matter - the suffixes are mutually exclusive by construction (verified by hand,
-    // not just assumed: e.g. "ProductServiceTest" does NOT end with "Service" - its last 7
-    // characters are "iceTest" - and "ProductControllerIT" does NOT end with "Controller" - its
-    // last 10 characters are "ntrollerIT"; see apiController/converter/pojo/repository/service/
-    // unitTest/integrationTest.mustache output filenames). Throws on anything else: with
-    // supporting files disabled, every staged file is expected to match one of these - an
-    // unrecognized file means either a template was added without updating this classifier, or
-    // a stale assumption, and failing loudly beats silently misplacing (or losing) a file.
+    // See docs/notes/AllcrudGenerator.md#classify-suffix-non-collision--verified-by-hand-not-assumed
     private static StagedFile classify(String fileName, PojoNamingStyle pojoNamingStyle) {
         String simpleName = fileName.endsWith(".java") ? fileName.substring(0, fileName.length() - 5) : fileName;
         for (GeneratedLayer layer : GeneratedLayer.values()) {
@@ -367,11 +249,7 @@ public final class AllcrudGenerator {
         throw new IllegalStateException("Unrecognized generated file, no known layer suffix matched: " + fileName);
     }
 
-    // Generated Java class name / filename suffix per layer - NOT mechanically derived from the
-    // enum constant name (capitalize(layer.name())) for UNIT_TEST/INTEGRATION_TEST: those are
-    // multi-word SCREAMING_SNAKE_CASE Java identifiers ("UNIT_TEST"), and capitalize() would
-    // produce "Unit_test", not a valid convention-following Java class name suffix. Must match
-    // the suffix string registered for the corresponding template in registerApiLayerTemplates.
+    // See docs/notes/AllcrudGenerator.md#layersuffix--why-unit_testintegration_test-arent-mechanically-derived
     private static String layerSuffix(GeneratedLayer layer, PojoNamingStyle pojoNamingStyle) {
         return switch (layer) {
             case POJO -> pojoNamingStyle.name();
@@ -388,11 +266,7 @@ public final class AllcrudGenerator {
     private record StagedFile(String resourceName, GeneratedLayer layer) {
     }
 
-    // Verified empirically (not assumed) that the package statement is always the literal
-    // first line of every one of our 5 templates' output, with nothing (license header,
-    // blank line) before it - see the AllcrudGeneratorPluginFunctionalTest smoke test output
-    // this was checked against. Fails loudly if that ever stops being true rather than
-    // silently corrupting the file.
+    // See docs/notes/AllcrudGenerator.md#rewritepackagestatement--package-line-is-always-line-1-verified-empirically
     private static String rewritePackageStatement(String content, String targetPackage, String fileName) {
         int newlineIndex = content.indexOf('\n');
         String firstLine = newlineIndex == -1 ? content : content.substring(0, newlineIndex);
@@ -404,16 +278,10 @@ public final class AllcrudGenerator {
         return "package " + targetPackage + ";" + rest;
     }
 
-    // ClientOptInput#getConfig() is deprecated in openapi-generator 7.23.0 with no
-    // replacement exposed yet for mutating apiTemplateFiles() programmatically - it's
-    // still the only supported way to register a new per-tag template file outside of
-    // writing a custom CodegenConfig subclass.
+    // See docs/notes/AllcrudGenerator.md#clientoptinputgetconfig-is-deprecated-with-no-replacement-openapi-generator-7230
     @SuppressWarnings("deprecation")
     private static void registerApiLayerTemplates(ClientOptInput clientOptInput) {
-        // service.mustache/repository.mustache/converter.mustache are brand-new templates
-        // (the stock "spring" generator has none of these layers) - registering them here
-        // as per-tag api template files is the supported extension point for this
-        // (CodegenConfig#apiTemplateFiles()).
+        // See docs/notes/AllcrudGenerator.md#registerapilayertemplates--servicerepositoryconvertermustache-are-brand-new-templates
         clientOptInput.getConfig().apiTemplateFiles().put("service.mustache", "Service.java");
         clientOptInput.getConfig().apiTemplateFiles().put("repository.mustache", "Repository.java");
         clientOptInput.getConfig().apiTemplateFiles().put("converter.mustache", "Converter.java");

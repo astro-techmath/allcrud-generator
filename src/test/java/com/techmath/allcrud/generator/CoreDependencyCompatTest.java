@@ -10,9 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards against silent drift between this generator and the pinned allcrud core
- * version (declared in gradle.properties). Fails at build time, on every push,
- * if the base-class shape this generator's templates rely on has changed.
+ * See docs/adr/0011-pinned-core-version-drift-guard.md
  */
 class CoreDependencyCompatTest {
 

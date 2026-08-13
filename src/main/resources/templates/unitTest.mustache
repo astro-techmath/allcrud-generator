@@ -1,7 +1,6 @@
-{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
-    file - the stock "spring" generator has no unit-test template at all. Registered as a
-    per-tag "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver
-    code (see AllcrudGenerator), with output suffix "ServiceTest.java".
+{{! See docs/templates-reference.md. Registered as a per-tag "api template file" via
+    CodegenConfig#apiTemplateFiles() in the generation driver code (see AllcrudGenerator), with
+    output suffix "ServiceTest.java".
 
     Extends the core's CrudServiceTests base (com.techmath.allcrud.service, confirmed via
     javap against the allcrud test-fixtures jar, not guessed) - a Mockito-only test, no Spring

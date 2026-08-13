@@ -1,24 +1,16 @@
-{{! allcrud-generator override of openapi-generator's embedded JavaSpring/apiController.mustache.
-    Drops the stock delegate pattern entirely: the generated class extends CrudController
-    directly, inheriting every REST mapping from the Allcrud base class, so this file only
-    needs to implement the getService()/getConverter() hooks.
+{{! See docs/templates-reference.md. Drops the stock delegate pattern entirely: the generated
+    class extends CrudController directly, inheriting every REST mapping from the Allcrud base
+    class, so this file only needs to implement the getService()/getConverter() hooks.
 
     allcrudEntityName / allcrudPojoClassName / allcrudIdType / allcrudBasePath are resolved by
     AllcrudSpringCodegen#postProcessOperationsWithModels (a custom CodegenConfig, not the
     stock "spring" one) by inspecting the actual OpenAPI model - not hardcoded here anymore.
 
-    @RequestMapping is a plain string literal (allcrudBasePath), not the stock
-    "${openapi.<title>.base-path:<default>}" Spring property placeholder - that indirection
-    resolved to an EMPTY path whenever nobody set the property in application.properties (the
-    common case), silently mapping the whole controller to the app root at runtime, with no
-    compile-time signal anything was wrong. Controller is "generate once, never overwrite" -
-    if the path needs to change later, the dev edits the literal directly, no property-file
-    indirection needed for that.
-    allcrudEntityName (entity) is still assumed to be hand-written by the consuming project -
-    this generator does not produce entities. Its package (allcrudEntityPackage) is resolved
-    by scanning the source tree for a file named "<allcrudEntityName>.java" and reading its
-    package declaration - there's no "packages.entity" yml key (rejected: doesn't support
-    entities living in different packages per module/domain).
+    See docs/adr/0005-basepath-absolute-not-concatenated.md and
+    docs/adr/0001-generate-once-never-overwrite.md for @RequestMapping being a plain string
+    literal (allcrudBasePath) instead of the stock Spring property placeholder.
+    See docs/adr/0006-entity-out-of-scope-v1.md for allcrudEntityName/allcrudEntityPackage
+    resolution.
     Service and Converter are NOT necessarily in this same package anymore - each of the 5
     layers has its own independent target package in allcrud-generator.yml's "packages"
     section, so they're imported explicitly via allcrudServicePackage/allcrudConverterPackage,

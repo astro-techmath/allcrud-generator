@@ -12,10 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// Checkpoint 3 of the idempotent-scaffolding rework: proves the per-layer overwrite policy
-// decision in AllcrudGenerator#shouldOverwrite is actually correct - not just that files land
-// in the right place (checkpoints 1-2), but that a pre-existing file is preserved or replaced
-// exactly per the fixed table (POJO configurable, everything else never-overwrite, no knob).
+// See docs/adr/0001-generate-once-never-overwrite.md - proves AllcrudGenerator#shouldOverwrite
+// is actually correct, not just that files land in the right place.
 class OverwritePolicyCompatTest {
 
     private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");
@@ -71,8 +69,7 @@ class OverwritePolicyCompatTest {
         Files.writeString(targetFile, sentinel);
         EntityFixtures.copyInto(sourceRoot, "Product", "Order");
 
-        // OnRegenerate.OVERWRITE only governs POJO - Controller has no knob and must never be
-        // touched, regardless of this value.
+        // See docs/adr/0001-generate-once-never-overwrite.md
         AllcrudGenerator.generate(new GenerationRequest(
                 SPEC, sourceRoot, EntityFixtures.unusedTestSourceRoot(), PojoNamingStyle.VO,
                 Set.of(GeneratedLayer.POJO, GeneratedLayer.CONTROLLER),

@@ -12,19 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// x-allcrud-auto-resource: true (document root) turns on automatic resource inference
-// (AllcrudSpringCodegen#inferAllcrudResources) - a path pair matching the CrudController shape
-// (collection GET returning an array of a named schema + item path "{collection}/{param}"
-// referencing that same schema) is treated as an allcrud resource without needing
-// x-allcrud-resource: true on every path by hand. x-allcrud-resource: false stays a per-path
-// opt-out, explicit always wins over inferred.
-//
-// Also covers the gate this feature exposed as a real gap (AllcrudSpringCodegen#
-// confirmedResourceNames / AllcrudGenerator#relocateOne): before it, x-allcrud-resource never
-// actually controlled whether Repository/Converter/Service/Controller got generated - any tag
-// whose schema had an "id" got them regardless of the marker, so "false" was a no-op. Now only
-// a confirmed (explicit or inferred) resource gets those 4 layers; POJO stays ungated (schema-
-// driven, not path-driven).
+// See docs/adr/0002-x-allcrud-resource-gate-and-inference.md and
+// docs/adr/0008-pojo-schema-driven-not-resource-driven.md
 class AutoResourceInferenceCompatTest {
 
     private static final Path AUTO_RESOURCE_SPEC = Path.of("src/test/resources/fixtures/auto-resource.yaml");
@@ -109,8 +98,7 @@ class AutoResourceInferenceCompatTest {
         assertFalse(Files.exists(sourceRoot.resolve("org/openapitools/api/GizmoRepository.java")));
         assertFalse(Files.exists(sourceRoot.resolve("org/openapitools/api/GizmoConverter.java")));
 
-        // POJO is deliberately not gated by x-allcrud-resource (schema-driven, not
-        // path-driven) - it's still generated even for an opted-out resource.
+        // See docs/adr/0008-pojo-schema-driven-not-resource-driven.md
         assertTrue(Files.exists(sourceRoot.resolve("org/openapitools/model/GizmoVO.java")));
     }
 
@@ -118,10 +106,7 @@ class AutoResourceInferenceCompatTest {
     void inferredResourceWithNoIdPropertyStillFailsFast() throws IOException {
         Path sourceRoot = Files.createTempDirectory("allcrud-auto-resource-no-id");
 
-        // openapi-generator's own per-tag api generation wraps whatever
-        // postProcessOperationsWithModels throws in its own RuntimeException (same wrapping
-        // proven empirically for the plain "no id" case, see the fail-fast's own tests) - the
-        // IllegalStateException we actually threw is the root cause, not the top-level type.
+        // See docs/notes/AutoResourceInferenceCompatTest.md#openapi-generator-wraps-postprocessoperationswithmodels-own-exception-in-its-own-runtimeexception
         // Constructed outside the lambda passed to assertThrows below - same reasoning as
         // AllcrudGeneratorInternalsCompatTest's equivalent fix: keeps the lambda down to the
         // single invocation actually under test.

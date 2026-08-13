@@ -240,9 +240,7 @@ class GeneratedControllerAndServiceCompatTest {
             }
         }
 
-        // Deliberately not closed: generic superclass/interface resolution (getGenericSuperclass(),
-        // getActualTypeArguments()) is lazy and happens later in the caller, still using this
-        // loader as the defining classloader - closing it here would break that resolution.
+        // See docs/notes/GeneratedControllerAndServiceCompatTest.md#classloader-deliberately-not-closed--generic-type-resolution-is-lazy
         URL classesUrl = classesOutputDir.toURI().toURL();
         URLClassLoader classLoader = new URLClassLoader(new URL[]{classesUrl}, getClass().getClassLoader());
         List<Class<?>> loaded = new java.util.ArrayList<>();

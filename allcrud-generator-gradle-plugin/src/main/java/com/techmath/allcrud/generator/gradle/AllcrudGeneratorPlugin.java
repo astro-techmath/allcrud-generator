@@ -14,15 +14,13 @@ public class AllcrudGeneratorPlugin implements Plugin<Project> {
     public void apply(Project project) {
         AllcrudGeneratorExtension extension = project.getExtensions()
                 .create(EXTENSION_NAME, AllcrudGeneratorExtension.class);
-        // src/main/java, not build/generated/... - files here are meant to persist and be
-        // hand-edited (Repository/Converter/Service/Controller never overwrite themselves),
-        // so the default must survive clean/CI. This is also now the Java source root
-        // directly (see javaSourceDir below), not an openapi-generator scratch output.
+        // src/main/java, not build/generated/... - see docs/adr/0001-generate-once-never-overwrite.md
+        // This is also now the Java source root directly (see javaSourceDir below), not an
+        // openapi-generator scratch output.
         extension.getOutputDir().convention(project.getLayout().getProjectDirectory().dir("src/main/java"));
-        // Fixed, not configurable to be anywhere else in spirit (GenerationRequest#testSourceRoot
-        // is a distinct field from sourceRoot, never merged) - only the DEFAULT is a convention
-        // here, same as outputDir's, for consistency with how every other directory in this
-        // plugin is wired; nothing downstream lets a caller point testOutputDir at outputDir.
+        // See docs/adr/0010-test-source-root-separate.md - only the DEFAULT is a convention
+        // here, same as outputDir's; nothing downstream lets a caller point testOutputDir at
+        // outputDir.
         extension.getTestOutputDir().convention(project.getLayout().getProjectDirectory().dir("src/test/java"));
         // allcrud-generator.yml at the project root - same convention as checkstyle.xml,
         // detekt.yml etc: build/tooling config, not a packaged runtime resource.
@@ -34,20 +32,13 @@ public class AllcrudGeneratorPlugin implements Plugin<Project> {
             task.getSpecFile().convention(extension.getSpecFile());
             task.getConfigFile().convention(extension.getConfigFile());
             task.getOutputDir().convention(extension.getOutputDir());
-            // Derived from the extension's outputDir, not the task's own getOutputDir() -
-            // see AllcrudGenerateTask's constructor comment for why. No longer appends
-            // "src/main/java": GenerationRequest#sourceRoot (see AllcrudGenerator) IS now the
-            // Java source root files land under directly - openapi-generator's own nested
-            // src/main/java output layout only existed in the pre-staging design.
+            // See docs/notes/AllcrudGeneratorPlugin.md#javasourcedir-convention--derived-from-the-extension-not-the-tasks-own-output
             task.getJavaSourceDir().convention(extension.getOutputDir());
             task.getTestOutputDir().convention(extension.getTestOutputDir());
             task.getJavaTestSourceDir().convention(extension.getTestOutputDir());
         });
 
-        // Wiring the source set to the task's own output property (not a detached
-        // provider) is what lets Gradle infer the compileJava -> generateAllcrud task
-        // dependency automatically - no explicit dependsOn needed. Same for compileTestJava via
-        // the "test" source set below.
+        // See docs/notes/AllcrudGeneratorPlugin.md#wiring-the-source-set-to-the-tasks-own-output-property-enables-automatic-task-dependency
         project.getPluginManager().withPlugin("java", appliedPlugin -> {
             JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             javaExtension.getSourceSets().getByName("main").getJava()

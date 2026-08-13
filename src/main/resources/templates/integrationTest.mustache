@@ -1,7 +1,6 @@
-{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
-    file - the stock "spring" generator has no integration-test template at all. Registered as
-    a per-tag "api template file" via CodegenConfig#apiTemplateFiles() in the generation driver
-    code (see AllcrudGenerator), with output suffix "ControllerIT.java".
+{{! See docs/templates-reference.md. Registered as a per-tag "api template file" via
+    CodegenConfig#apiTemplateFiles() in the generation driver code (see AllcrudGenerator), with
+    output suffix "ControllerIT.java".
 
     Extends the core's CrudControllerIntegrationTests base (com.techmath.allcrud.controller,
     confirmed via javap against the allcrud test-fixtures jar, not guessed) - uses its 3-arg

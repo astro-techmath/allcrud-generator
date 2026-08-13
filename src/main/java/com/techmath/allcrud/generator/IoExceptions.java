@@ -13,13 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-// Public only because it's shared across com.techmath.allcrud.generator and
-// com.techmath.allcrud.generator.codegen (AllcrudSpringCodegen) - not otherwise part of this
-// module's public API surface in spirit. Hosts every defensive "checked IOException -> unchecked"
-// wrapper in the module in one place, deliberately excluded from JaCoCo (see build.gradle.kts):
-// these branches are only reachable by mocking a real filesystem failure (a full disk, a
-// permissions error mid-run), which none of this project's real, meaningful tests do - they
-// exercise real filesystems directly instead.
+// See docs/notes/IoExceptions.md#public-visibility--shared-across-2-packages-not-a-public-api-surface
 public final class IoExceptions {
 
     private IoExceptions() {
@@ -31,11 +25,7 @@ public final class IoExceptions {
 
     public static Path createTempDirectory(String prefix) {
         try {
-            // False positive (java:S5443): java.nio.file.Files#createTempDirectory (NIO.2,
-            // since JDK 7) already restricts the created directory to owner-only permissions
-            // (rwx------ on POSIX) by default when no FileAttribute is passed - confirmed
-            // against the JDK's own documented behavior, not the older, genuinely-unsafe
-            // File#createTempFile/mkdir pattern this rule is designed to catch.
+            // See docs/notes/IoExceptions.md#createtempdirectory--javas5443-is-a-false-positive-here
             return Files.createTempDirectory(prefix); // NOSONAR java:S5443
         } catch (IOException e) {
             throw wrap(e);

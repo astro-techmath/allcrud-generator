@@ -12,15 +12,10 @@ import java.util.Set;
 // the caller supplies separately (the yml doesn't carry those - they're wherever the caller/
 // plugin decides, e.g. a Gradle task property).
 //
-// Manual SnakeYAML Map/List walking, not a data-binding library: the validation rules here
-// (onRegenerate only ever nests under "pojo"; unitTest/integrationTest never take a global
-// "package" - see below; every layer name must be one of the 7 known ones) need precise,
-// project-specific error messages pointing at the exact yml path that's wrong - a generic
-// data-binding failure wouldn't give a caller that.
+// See docs/adr/0012-manual-yaml-parsing-no-databinding.md and
+// docs/adr/0009-yml-v2-breaking-format-change.md
 //
-// Expected shape (v2 - breaks compatibility with the old packages/defaults/"generate: [...]"
-// format on purpose: no external users yet, and per-layer enabled:boolean at both the global
-// and per-resource level is a cleaner model than a list that either replaces or doesn't):
+// Expected shape:
 //
 //   pojoNamingStyle: VO   # or DTO
 //   routing:
@@ -83,9 +78,7 @@ import java.util.Set;
 // FINAL absolute @RequestMapping path for that resource - see ResourceOverride.
 public final class AllcrudGeneratorYamlConfig {
 
-    // YAML key names - same literal, same meaning (a key in the parsed yml map) everywhere it
-    // appears in this class, confirmed one by one before unifying (S1192: each was a real
-    // duplicate, not coincidentally-equal text with a different meaning depending on context).
+    // See docs/notes/AllcrudGeneratorYamlConfig.md#yaml-key-name-constants--deduplication-was-verified-not-assumed-s1192
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_PACKAGE = "package";
     private static final String KEY_ON_REGENERATE = "onRegenerate";
@@ -266,11 +259,8 @@ public final class AllcrudGeneratorYamlConfig {
         return enabledLayers;
     }
 
-    // resources.<name> - cascades each of the 7 layers' "enabled" independently (resource's own
-    // value if present, else generation.<layer>'s resolved default) into a single, fully-
-    // resolved Set<GeneratedLayer> for this resource (ResourceOverride#generate is never null
-    // for a resource that appears under "resources:" - there's no more "generate: [...]
-    // replaces the list" ambiguity to preserve now that every layer toggles independently).
+    // See docs/adr/0004-layer-dependency-chain.md - cascades each of the 7 layers' "enabled"
+    // independently (resource's own value if present, else generation.<layer>'s resolved default).
     private static ResourceOverride parseResource(
             Map<String, Object> resourceNode, String location, GenerationSection generation, Path ymlPath) {
         Map<GeneratedLayer, Boolean> resolvedEnabled = new LinkedHashMap<>();
@@ -312,11 +302,7 @@ public final class AllcrudGeneratorYamlConfig {
         return new ResourceOverride(Set.copyOf(generate), pojoOnRegenerate, basePath, Map.copyOf(packageOverrides));
     }
 
-    // Eager, per-resource check: a production layer enabled for THIS resource (whether by its
-    // own override or by inheriting the global default) needs a resolvable package - either
-    // this resource's own override, or the global one. unitTest/integrationTest are exempt:
-    // they always have a dynamic fallback available (the sibling service/controller package),
-    // never a missing-package failure mode.
+    // See docs/notes/AllcrudGeneratorYamlConfig.md#requireresourcelayerhaspackage--why-unittestintegrationtest-are-exempt
     private static void requireResourceLayerHasPackage(
             GeneratedLayer layer, String layerLocation, boolean enabled,
             Map<GeneratedLayer, String> packageOverrides, GenerationSection generation, Path ymlPath) {
@@ -360,13 +346,10 @@ public final class AllcrudGeneratorYamlConfig {
         return withBasePath;
     }
 
-    // Absent "exceptionHandler" section entirely -> enabled:true (opt-out default, see
-    // ExceptionHandlerConfig), package falls back to generation.controller.package, className
-    // defaults to "GlobalExceptionHandler". generation.controller.package is only mandatory
-    // when generation.controller.enabled is true (the default) - if a project has explicitly
-    // disabled the Controller layer globally AND doesn't declare "exceptionHandler.package"
-    // explicitly, this is what catches the resulting unresolvable package, loudly, instead of
-    // a silent null flowing into AllcrudGenerator.
+    // See docs/adr/0007-exceptionhandler-opt-out-default.md. Package falls back to
+    // generation.controller.package, className defaults to "GlobalExceptionHandler" - fails
+    // loudly if neither an explicit "exceptionHandler.package" nor that fallback resolves,
+    // instead of a silent null flowing into AllcrudGenerator.
     private static ExceptionHandlerConfig parseExceptionHandlerConfig(
             Map<String, Object> root, Map<GeneratedLayer, String> packages, Path ymlPath) {
         boolean enabled = true;
@@ -431,27 +414,7 @@ public final class AllcrudGeneratorYamlConfig {
         }
     }
 
-    // The layers aren't actually independent - confirmed by grepping every one of the 6
-    // non-POJO templates for allcrudPojoClassName/allcrudPojoPackage (the POJO type/import),
-    // not assumed:
-    //   - converter.mustache: Converter<Entity, POJO, ID>, convertToVO()/convertToEntity()
-    //     signatures - CONVERTER requires POJO directly.
-    //   - apiController.mustache: CrudController<Entity, POJO, ID>, getConverter() return
-    //     type - CONTROLLER requires POJO directly, not only transitively via CONVERTER.
-    //   - integrationTest.mustache: imports POJO, super(POJO.class, ID.class, ...),
-    //     getConverter() return type - INTEGRATION_TEST requires POJO directly too, but see
-    //     the comment further below on why that isn't checked as a separate rule.
-    //   - service.mustache/repository.mustache/unitTest.mustache: no POJO reference at all
-    //     (grep came back empty) - SERVICE/REPOSITORY/UNIT_TEST have no POJO dependency.
-    // Also confirmed (unchanged from before): apiController.mustache hardcodes a constructor
-    // dependency on the generated Service and Converter classes, and service.mustache
-    // hardcodes one on Repository - CONTROLLER can never compile without SERVICE+CONVERTER,
-    // and SERVICE can never compile without REPOSITORY. integrationTest.mustache hardcodes a
-    // constructor dependency on the generated Controller class (INTEGRATION_TEST requires
-    // CONTROLLER, which itself cascades to SERVICE+CONVERTER+POJO), unitTest.mustache
-    // hardcodes one on Service (UNIT_TEST requires SERVICE, which cascades to REPOSITORY).
-    // Validated eagerly here (at yml load time, one clear message) rather than left to surface
-    // as a confusing downstream javac error.
+    // See docs/adr/0004-layer-dependency-chain.md.
     // 5 independent, sequential checks (each reads only the immutable "layers" set, no shared
     // mutable state between them) - split out of what used to be one large method to bring its
     // Cognitive Complexity back under the project's limit. Order preserved exactly: first
@@ -499,11 +462,8 @@ public final class AllcrudGeneratorYamlConfig {
         }
     }
 
-    // No separate POJO check here despite integrationTest.mustache referencing POJO
-    // directly: CONTROLLER's own check above already guarantees POJO is present whenever
-    // CONTROLLER passes without throwing, and this block already requires CONTROLLER - so
-    // by the time execution reaches here, POJO's presence is already proven, not just
-    // assumed. A separate check would be dead code, never reachable.
+    // See docs/adr/0004-layer-dependency-chain.md - no separate POJO check here; CONTROLLER's
+    // own check above already guarantees it transitively.
     private static void requireIntegrationTestHasController(Set<GeneratedLayer> layers, String location, Path ymlPath) {
         if (layers.contains(GeneratedLayer.INTEGRATION_TEST) && !layers.contains(GeneratedLayer.CONTROLLER)) {
             throw configError(location, ymlPath,
@@ -529,10 +489,7 @@ public final class AllcrudGeneratorYamlConfig {
         return sb.toString();
     }
 
-    // Absent "onRegenerate" -> PRESERVE default. Only ever called for the pojo layer node
-    // (global generation.pojo or a resource's pojo override) - POJO_LAYER_ALLOWED_KEYS is the
-    // only allowed-keys set that includes "onRegenerate" at all, so a caller passing any other
-    // layer's node here would already have failed requireOnlyKeys before reaching this method.
+    // See docs/notes/AllcrudGeneratorYamlConfig.md#parseonregeneratevalue--only-ever-called-for-the-pojo-layer-node
     private static OnRegenerate parseOnRegenerateValue(Object raw, String location, Path ymlPath) {
         if (raw == null) {
             return OnRegenerate.PRESERVE;
@@ -545,9 +502,7 @@ public final class AllcrudGeneratorYamlConfig {
         }
     }
 
-    // Whitelists the keys allowed at a given node instead of hunting for specific misplaced
-    // keys - this single check catches typos and any other unsupported key uniformly, with one
-    // clear error message naming the exact offending key(s) and location.
+    // See docs/notes/AllcrudGeneratorYamlConfig.md#requireonlykeys--whitelist-not-a-search-for-specific-misplaced-keys
     private static void requireOnlyKeys(Map<String, Object> node, Set<String> allowedKeys, String location, Path ymlPath) {
         Set<String> unknownKeys = new LinkedHashSet<>(node.keySet());
         unknownKeys.removeAll(allowedKeys);

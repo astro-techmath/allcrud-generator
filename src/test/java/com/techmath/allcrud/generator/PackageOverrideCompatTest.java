@@ -11,10 +11,9 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// AllcrudGenerator#packageOverrides() (resources.<name>.<layer>.package) had no end-to-end test
-// before this - BasePathCompatTest's ResourceOverride usages only ever exercised the basePath
-// field, always passing packageOverrides=null. This proves a per-resource package override
-// actually relocates the generated file to the overridden package, not just the global one.
+// See docs/adr/0003-packages-global-with-resource-override.md - had no end-to-end test before
+// this (BasePathCompatTest's ResourceOverride usages only ever exercised the basePath field,
+// always passing packageOverrides=null).
 class PackageOverrideCompatTest {
 
     private static final Path SPEC = Path.of("src/main/resources/specs/product-example.yaml");

@@ -35,10 +35,9 @@ import java.util.Set;
  * resource entity name, its generated POJO (VO/DTO) class name, and its ID type - instead
  * of those being hardcoded string literals in the templates.
  *
- * Not registered via META-INF/services (SPI): CodegenConfigLoader#forName falls back to
- * Class.forName(name).newInstance() when no SPI provider matches the given name, so the
- * generation driver just passes this class's fully-qualified name as the "generator name"
- * (see AllcrudGenerator).
+ * Not registered via META-INF/services (SPI) - see
+ * docs/notes/AllcrudSpringCodegen.md#codegenconfigloaderforname-fallback for why a
+ * fully-qualified class name works as the "generator name" here (see AllcrudGenerator).
  */
 public class AllcrudSpringCodegen extends SpringCodegen {
 
@@ -48,71 +47,35 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     public static final String ALLCRUD_POJO_NAMING_STYLE = "allcrudPojoNamingStyle";
     public static final String ALLCRUD_USE_DTO = "allcrudUseDto";
     public static final String ALLCRUD_BASE_PATH = "allcrudBasePath";
-    // Additional properties AllcrudGenerator sets globally for the whole run (see
-    // GenerationRequest#basePathPrefix / ResourceOverride#basePath) - read here per-operation
-    // to resolve ALLCRUD_BASE_PATH. Not exposed as vendor extensions like x-allcrud-id-type:
-    // these come from allcrud-generator.yml, not the OpenAPI spec itself.
+    // See docs/notes/AllcrudSpringCodegen.md#allcrud_base_path_prefixoverrides--read-per-operation-from-global-additionalproperties
     public static final String ALLCRUD_BASE_PATH_PREFIX = "allcrudBasePathPrefix";
     public static final String ALLCRUD_BASE_PATH_OVERRIDES = "allcrudBasePathOverrides";
     public static final String ALLCRUD_ENTITY_PACKAGE = "allcrudEntityPackage";
-    // AllcrudGenerator#sourceRoot, passed through so postProcessOperationsWithModels can scan
-    // it for <entityName>.java (see resolveEntityPackage) - the Entity itself is never
-    // generated, so its package can't be resolved any other way (no "packages.entity" key in
-    // allcrud-generator.yml either - rejected: doesn't support entities living in different
-    // packages per module/domain, e.g. com.acme.catalog.Product vs com.acme.sales.Order).
+    // See docs/notes/AllcrudSpringCodegen.md#allcrud_source_root--threaded-through-since-the-entity-is-never-generated
     public static final String ALLCRUD_SOURCE_ROOT = "allcrudSourceRoot";
-    // Target packages the templates actually read for the other 5 layers - NEVER set as
-    // additionalProperties directly (unlike allcrudEntityName/allcrudBasePath's siblings,
-    // that's the point): only ever objs.put() per-resource below, in
-    // postProcessOperationsWithModels. Setting these as additionalProperties was tried first and
-    // was wrong - DefaultGenerator#generateApis calls
-    // operation.putAll(config.additionalProperties()) AFTER postProcessOperationsWithModels
-    // already ran for that operation (confirmed by reading DefaultGenerator's source), so any
-    // per-resource value put here under one of these exact keys got silently clobbered right
-    // back to the global default by that putAll. See ALLCRUD_LAYER_PACKAGES below for where the
-    // actual global defaults now travel instead.
+    // Target packages the templates actually read for the other 5 layers (see
+    // docs/adr/0003-packages-global-with-resource-override.md for the global-vs-override
+    // decision itself) - NEVER set as additionalProperties directly, only ever objs.put()
+    // per-resource below, in postProcessOperationsWithModels. See
+    // docs/notes/AllcrudGenerator.md#putall--defaultgeneratorgenerateapis-canonical--see-also-allcrudspringcodegen
+    // for why. ALLCRUD_LAYER_PACKAGES below is where the actual global defaults travel instead.
     public static final String ALLCRUD_POJO_PACKAGE = "allcrudPojoPackage";
     public static final String ALLCRUD_REPOSITORY_PACKAGE = "allcrudRepositoryPackage";
     public static final String ALLCRUD_CONVERTER_PACKAGE = "allcrudConverterPackage";
     public static final String ALLCRUD_SERVICE_PACKAGE = "allcrudServicePackage";
-    // Added for integrationTest.mustache, which imports the generated Controller class - until
-    // now nothing else ever imported "the Controller" from another layer, so this was
-    // deliberately left out (see the old comment on AllcrudGenerator#layerPackages, now stale).
+    // See docs/notes/AllcrudSpringCodegen.md#allcrud_controller_package--added-for-integrationtestmustaches-import
     public static final String ALLCRUD_CONTROLLER_PACKAGE = "allcrudControllerPackage";
-    // layer name -> global package (AllcrudGenerator#layerPackages) - safe to set as a plain
-    // additionalProperty (unlike the 4 above) because no template reads "allcrudLayerPackages"
-    // directly; only resolvePackage below does, as the fallback when a resource has no override.
+    // See docs/notes/AllcrudSpringCodegen.md#allcrud_layer_packages--safe-as-a-plain-additionalproperty
     public static final String ALLCRUD_LAYER_PACKAGES = "allcrudLayerPackages";
-    // resourceName -> layer name -> package (ResourceOverride#packageOverrides, see
-    // AllcrudGenerator#packageOverrides) - a per-resource exception to ALLCRUD_LAYER_PACKAGES.
-    // Resolved per-resource in postProcessOperationsWithModels (resolvePackage) - without this, a
-    // Controller/Service/Converter importing another layer's class would always import the
-    // GLOBAL package even when that resource's layer was relocated somewhere else entirely.
+    // See docs/notes/AllcrudSpringCodegen.md#allcrud_package_overrides--per-resource-exception-to-allcrud_layer_packages
     public static final String ALLCRUD_PACKAGE_OVERRIDES = "allcrudPackageOverrides";
-    // ModelsMap-level flags (postProcessModels, consumed at model.mustache's top level, outside
-    // the per-model {{#models}}{{#model}} loop where vendorExtensions.allcrudIdType lives) -
-    // gate the stock template's unconditional "import java.net.URI;"/"import java.util.*;" so
-    // generated POJOs only carry them when a property actually needs java.net.URI (format: uri)
-    // or java.util's unqualified ArrayList/HashMap/LinkedHashSet/Arrays (container or byte[]
-    // vars - see pojo.mustache's fluent add/put methods and Arrays.equals/hashCode calls).
-    // Both imports are unconditional in the untouched stock JavaSpring/model.mustache too (verified
-    // by diff) - not something this project introduced, but still dead weight in every one of
-    // this project's own generated POJOs so far, since {{#imports}} above already adds
-    // java.net.URI on its own account whenever a property's type genuinely resolves to it.
+    // See docs/notes/AllcrudSpringCodegen.md#javanet-uri--javautil-import-gating-in-generated-pojos
     public static final String ALLCRUD_NEEDS_URI_IMPORT = "allcrudNeedsUriImport";
     public static final String ALLCRUD_NEEDS_JAVA_UTIL_IMPORT = "allcrudNeedsJavaUtilImport";
 
     private static final String X_ALLCRUD_ID_TYPE = "x-allcrud-id-type";
     private static final String X_ALLCRUD_RESOURCE = "x-allcrud-resource";
-    // Document-root vendor extension (OpenAPI#getExtensions(), NOT info#getExtensions()) -
-    // root is where document-wide TOOLING directives conventionally live (e.g. Redoc's
-    // x-tagGroups), as opposed to info-level extensions which describe the API itself (e.g.
-    // Redoc's x-logo). Default false/absent is a deliberate safety choice: turning this on
-    // changes what gets generated for every existing spec that doesn't opt in, so it must
-    // never be silently assumed - same "explicit beats absent, absent falls back to a safe
-    // default" pattern as x-allcrud-resource's own per-path override below, and the same one
-    // already used elsewhere in this project (resolveEffectivePackage, generate:[...] per
-    // resource, onRegenerate).
+    // See docs/notes/AllcrudSpringCodegen.md#x-allcrud-auto-resource--document-root-vendor-extension-defaults-false
     private static final String X_ALLCRUD_AUTO_RESOURCE = "x-allcrud-auto-resource";
     private static final String DTO_STYLE = "DTO";
     private static final String VO_STYLE = "VO";
@@ -121,33 +84,14 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // toApiFilename's javadoc for why this reuses that data instead of resolving the
     // entity name a second time from a different source.
     private final Map<String, String> entityNameByApiName = new HashMap<>();
-    // Entity package resolution (resolveEntityPackage) requires walking the whole sourceRoot
-    // tree - cheap for the handful of resources a real project has, but cached per entity name
-    // anyway since postProcessOperationsWithModels can run more than once for the same
-    // resource's tag group across a single generate() invocation.
+    // See docs/notes/AllcrudSpringCodegen.md#entitypackagebyentityname--why-its-cached
     private final Map<String, String> entityPackageByEntityName = new HashMap<>();
-    // Entity names (CodegenModel#schemaName) confirmed as real Allcrud resources - populated
-    // only when postProcessOperationsWithModels actually resolves a tag (explicit or inferred
-    // x-allcrud-resource, with an "id"), read back by AllcrudGenerator#relocate to decide
-    // which staged REPOSITORY/CONVERTER/SERVICE/CONTROLLER/UNIT_TEST/INTEGRATION_TEST files
-    // are real output vs. openapi-generator's own per-tag scaffolding for tags that were
-    // never marked as a resource at all (see confirmedResourceNames()). POJO is deliberately
-    // NOT gated by this - its generation has always been schema-driven, not path/tag-driven,
-    // independent of x-allcrud-resource entirely (a schema can be a legitimate request/
-    // response body of a non-CRUD endpoint and still need its VO/DTO generated).
+    // See docs/notes/AllcrudSpringCodegen.md#confirmedresourcenames--real-output-vs-openapi-generator-scaffolding
     private final Set<String> confirmedResourceNames = new LinkedHashSet<>();
 
     public AllcrudSpringCodegen() {
         super();
-        // api.mustache (the stock "{{classname}}Api" interface, e.g. ProductsApi) is never
-        // implemented by our generated Controller (which extends CrudController directly
-        // instead of the stock delegate pattern - see apiController.mustache) - it's dead
-        // code. It also broke once toApiFilename below started returning the bare entity
-        // name ("Product.java") while this file's own content still declared the stock,
-        // differently-named interface inside it (a file/class name mismatch, confirmed via
-        // javac to be a hard compile error) - so this isn't just cleanup, it's a fix.
-        // apiDelegate.mustache isn't in this map by default (delegate pattern is opt-in),
-        // so there's nothing to remove for it.
+        // See docs/notes/AllcrudSpringCodegen.md#apimustache-stock-template-is-dead-code--and-was-a-real-bug-not-just-cleanup
         apiTemplateFiles.remove("api.mustache");
     }
 
@@ -169,11 +113,8 @@ public class AllcrudSpringCodegen extends SpringCodegen {
      * operations could land in different tags and a per-tag scan would miss the pair
      * entirely. Path-string correlation has no such dependency.
      *
-     * Confirmed by reading DefaultGenerator's source (not assumed): config.preprocessOpenAPI
-     * (openAPI) runs BEFORE config.setOpenAPI(openAPI), but they're passed the exact same
-     * OpenAPI instance - so extensions written onto a PathItem here are visible later, once
-     * this.openAPI is set, to fromOperation's own path-level vendor extension backfill (see
-     * that method below) with zero changes needed there.
+     * See docs/notes/AllcrudSpringCodegen.md#preprocessopenapi-runs-before-setopenapi-same-openapi-instance
+     * for why extensions written here are visible later to fromOperation's backfill.
      *
      * Deliberately does NOT check for an "id" property on the candidate schema (unlike
      * findIdProperty, used later) - a path pair matching this exact shape is either a real
@@ -236,10 +177,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return path.contains("{");
     }
 
-    // "/products" -> "/products/{id}" matches (exactly one more segment, and that segment is
-    // a path parameter). "/products" -> "/products/search" does NOT match (extra segment is a
-    // literal, not "{...}") - this is what keeps a genuinely non-CRUD sibling endpoint like a
-    // search/export/report route from being misdetected as this resource's item path.
+    // See docs/notes/AllcrudSpringCodegen.md#isitempathof--path-matching-rule-for-auto-resource-inference
     private boolean isItemPathOf(String collectionPath, String candidatePath) {
         if (candidatePath.length() <= collectionPath.length() || !candidatePath.startsWith(collectionPath)) {
             return false;
@@ -248,11 +186,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return suffix.matches("/\\{[^/{}]+}");
     }
 
-    // Collection path signal: a GET whose success response is an array of a named ($ref'd)
-    // schema. POST is deliberately NOT required here (approved design decision) - a
-    // read-only-via-API resource (managed through another channel, e.g. an admin tool) still
-    // benefits from generated Repository/Service/Converter/Controller for the operations that
-    // do exist in the spec.
+    // See docs/notes/AllcrudSpringCodegen.md#resolvelistitemschemaname--post-not-required-approved-design-decision
     private String resolveListItemSchemaName(OpenAPI openAPI, Operation getOperation) {
         if (getOperation == null) {
             return null;
@@ -268,9 +202,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     // named schema directly (not array-wrapped) - either as its request body or its success
     // response.
     private boolean referencesSchema(OpenAPI openAPI, PathItem itemPathItem, String schemaName) {
-        // List.of(...) rejects null elements outright - most item paths only implement a
-        // subset of GET/PUT/PATCH/DELETE, so this array (which allows null) is walked by
-        // index instead of collected into a List first.
+        // See docs/notes/AllcrudSpringCodegen.md#referencesschema--array-instead-of-listof-for-candidates
         Operation[] candidates = {
                 itemPathItem.getGet(), itemPathItem.getPut(), itemPathItem.getPatch(), itemPathItem.getDelete()};
         for (Operation operation : candidates) {
@@ -303,10 +235,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return null;
     }
 
-    // Only a $ref'd (named component) schema counts - an inline schema has no stable name to
-    // correlate a collection path against an item path with, consistent with how every other
-    // schema resolution in this class (findResourceModel, findIdProperty) only ever deals in
-    // named component schemas.
+    // See docs/notes/AllcrudSpringCodegen.md#schemarefname--only-refd-schemas-count
     private String schemaRefName(Schema<?> schema) {
         if (schema == null || schema.get$ref() == null) {
             return null;
@@ -351,23 +280,10 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     }
 
     /**
-     * pojo.mustache hardcodes the ID type as the literal "Long" in its
-     * "implements AbstractEntityVO&lt;Long&gt;"/"AbstractEntityDTO&lt;Long&gt;" clause - a
-     * known limitation noted when that template was written (pojo.mustache renders in a
-     * per-model CodegenModel context, which never sees allcrudIdType, resolved only in
-     * postProcessOperationsWithModels's OperationsMap context). It went unnoticed because
-     * every resource tested so far happened to use Long. Adding a second resource with a
-     * different ID type (Order, Integer) surfaced it for real: OrderVO compiled with
-     * "implements AbstractEntityVO&lt;Long&gt;" while its getId() correctly returned
-     * Integer - a hard compile error, not a leak between resources in this class.
-     *
-     * This resolves the ID type per model directly (each model already has its own "id"
-     * property in allVars, no cross-referencing against operations needed, unlike
-     * postProcessOperationsWithModels above) and stashes it in the model's own
-     * vendorExtensions map - CodegenModel isn't a Map like OperationsMap, so it can't take
-     * an arbitrary top-level put(); vendorExtensions is the established extension point
-     * for this (pojo.mustache already reads vendorExtensions.x-class-extra-annotation the
-     * same dotted way).
+     * Resolves each model's own ID type into its vendorExtensions map (ALLCRUD_ID_TYPE), so
+     * pojo.mustache doesn't have to hardcode "Long" - see
+     * docs/notes/AllcrudSpringCodegen.md#pojomustache-hardcoded-id-type-long--real-bug-not-a-hypothetical
+     * for the bug this fixes and why vendorExtensions is how it's threaded through.
      */
     @Override
     public ModelsMap postProcessModels(ModelsMap objs) {
@@ -402,13 +318,8 @@ public class AllcrudSpringCodegen extends SpringCodegen {
     }
 
     /**
-     * The stock fromOperation only copies vendor extensions declared on the OpenAPI
-     * *operation* itself (operation.getExtensions()) into CodegenOperation#vendorExtensions.
-     * Extensions declared on the *path* (e.g. x-allcrud-resource, x-allcrud-id-type in this
-     * project's convention) never reach there on their own - confirmed empirically, not
-     * assumed. This override backfills them, with operation-level extensions always taking
-     * precedence over path-level ones on conflict (putIfAbsent: the operation's own values,
-     * copied by super.fromOperation already, are never overwritten).
+     * See docs/notes/AllcrudSpringCodegen.md#fromoperation-only-copies-vendor-extensions-from-the-operation-level-never-path
+     * for why this override exists and backfills path-level vendor extensions.
      */
     @Override
     public CodegenOperation fromOperation(String path, String httpMethod, Operation operation, List<Server> servers) {
@@ -487,18 +398,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
                 continue;
             }
 
-            // x-allcrud-resource (explicit or inferred - see preprocessOpenAPI) is the actual
-            // gate on generation, not just a label: a tag whose schema happens to have an
-            // "id" but was never marked/inferred as a resource must NOT get a Controller/
-            // Service/Repository/Converter generated for it - until this check, ANY path with
-            // an id-bearing schema silently got full CRUD scaffolding regardless of
-            // x-allcrud-resource, making x-allcrud-resource: false a no-op and the marker
-            // itself decorative outside the id-missing error below. Stopping here (not
-            // populating objs, not adding to confirmedResourceNames) means
-            // AllcrudGenerator#relocate will discard this tag's staged Controller/Service/
-            // Repository/Converter/*Test files entirely - openapi-generator still renders
-            // them into the throwaway staging dir (harmless), they just never reach
-            // sourceRoot. POJO is unaffected (see confirmedResourceNames' own comment).
+            // See docs/notes/AllcrudSpringCodegen.md#postprocessoperationswithmodels--early-break-on-non-resource-tag
             if (!isAllcrudResource) {
                 break;
             }
@@ -519,19 +419,9 @@ public class AllcrudSpringCodegen extends SpringCodegen {
             break;
         }
 
-        // A path marked x-allcrud-resource: true is a hard promise to generate a
-        // CrudController/CrudService/EntityRepository/Converter for it - all four are
-        // generic over an ID type, so a resource with no "id" property (and no
-        // x-allcrud-id-type override) can't be satisfied. Before this check, the loop above
-        // just fell through with objs never populated for this tag: postProcessOperationsWithModels
-        // returned normally, so nothing downstream (relocate(), the templates) ever saw an
-        // error - the templates rendered with allcrudEntityName/allcrudIdType etc. simply
-        // absent, producing syntactically invalid Java (empty generics, "import .;", a
-        // generic "Controller"/"Service"/"Repository"/"Converter" class name collision across
-        // every resource in this situation) that only surfaced much later, in the consumer's
-        // own javac - confirmed empirically, not hypothetical. Failing here, as soon as the
-        // resolution that would need "id" comes up empty, is the earliest point a CodegenModel
-        // (with allVars fully resolved - $ref/allOf/inheritance flattened) exists at all.
+        // See docs/adr/0002-x-allcrud-resource-gate-and-inference.md for why this fails fast,
+        // and docs/notes/AllcrudSpringCodegen.md#fail-fast-on-missing-id--why-silent-fallthrough-was-worse
+        // for what silently fell through before this check existed.
         if (!resolved && isAllcrudResource && firstResourceModelWithoutId != null) {
             throw new IllegalStateException(
                     "Resource \"" + firstResourceModelWithoutId.schemaName + "\" is marked "
@@ -543,48 +433,22 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return objs;
     }
 
-    // Read by AllcrudGenerator#relocate after DefaultGenerator#generate() completes (same
-    // CodegenConfig instance, obtained via ClientOptInput#getConfig()) to decide which staged
-    // REPOSITORY/CONVERTER/SERVICE/CONTROLLER/UNIT_TEST/INTEGRATION_TEST files are real,
-    // confirmed-resource output versus openapi-generator's own per-tag scaffolding for tags
-    // nobody marked/inferred as an allcrud resource - see postProcessOperationsWithModels'
-    // own early break on a non-resource tag, above.
+    // See docs/notes/AllcrudSpringCodegen.md#confirmedresourcenames--read-by-allcrudgeneratorrelocate
     public Set<String> confirmedResourceNames() {
         return Set.copyOf(confirmedResourceNames);
     }
 
-    // Path-level vendor extension (x-allcrud-resource) backfilled onto the operation by
-    // fromOperation above - checked here, not assumed true for every tag, because
-    // postProcessOperationsWithModels runs for every tag in the spec regardless of that marker
-    // (nothing upstream filters non-resource paths out of codegen). Without this check, the
-    // no-"id" fail-fast below would wrongly reject any incidental model-with-no-id that happens
-    // to share a tag with unrelated, non-CRUD operations.
+    // See docs/notes/AllcrudSpringCodegen.md#isallcrudresource--why-its-checked-per-operation-not-assumed-true
     private boolean isAllcrudResource(CodegenOperation operation) {
         Object value = operation.vendorExtensions.get(X_ALLCRUD_RESOURCE);
         return Boolean.TRUE.equals(value) || "true".equalsIgnoreCase(String.valueOf(value));
     }
 
     /**
-     * The generated file name otherwise defaults to this.toApiName(tag) + suffix (e.g.
-     * "ProductsApiController.java" - "ProductsApi" derived from the OpenAPI tag, which
-     * SpringCodegen auto-derives from the path and pluralizes, plus its own "Api" suffix
-     * convention). That mismatched the class name inside the file once apiController.
-     * mustache/service.mustache/repository.mustache/converter.mustache were changed to use
-     * allcrudEntityName ("Product") as the class name prefix instead - and javac rejects a
-     * public class whose name doesn't match its file name, confirmed empirically, not
-     * assumed.
-     *
-     * This does NOT re-resolve the entity name from the OpenAPI model a second time (which
-     * would duplicate the "find the id property" logic in postProcessOperationsWithModels
-     * above under a different, lower-level form, since CodegenModel doesn't exist yet at
-     * preprocessOpenAPI time - confirmed empirically that operation.getTags() is still null
-     * that early). Instead it reuses the SAME resolution already cached above: for a given
-     * tag, postProcessOperationsWithModels always runs (via DefaultGenerator#processOperations)
-     * before toApiFilename is called for that same tag (confirmed in DefaultGenerator's
-     * generateApis), and AbstractJavaCodegen#toApiFilename(name) is itself just
-     * toApiName(name) - the exact same transform used as this cache's key
-     * (operations.getClassname() = config.toApiName(tag), set before
-     * postProcessOperationsWithModels runs).
+     * See docs/notes/AllcrudSpringCodegen.md#toapifilename--cache-reuse-depends-on-defaultgenerators-real-execution-order
+     * for why this overrides the default file name and why reusing entityNameByApiName
+     * (instead of re-resolving the entity name) is safe given DefaultGenerator's real
+     * execution order.
      */
     @Override
     public String toApiFilename(String name) {
@@ -612,10 +476,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return null;
     }
 
-    // resources.<entityName>.basePath (ALLCRUD_BASE_PATH_OVERRIDES) is a FINAL absolute path,
-    // not concatenated with the prefix - that's the whole point of an override. Without one,
-    // the path is always "{basePathPrefix}/{entityName, lowercased}". basePathPrefix defaults
-    // to "" (no opinion, e.g. no forced "/api") when the caller doesn't set it at all.
+    // See docs/notes/AllcrudSpringCodegen.md#resolvebasepath--the-actual-formula
     @SuppressWarnings("unchecked")
     private String resolveBasePath(String entityName) {
         Object overridesValue = additionalProperties().get(ALLCRUD_BASE_PATH_OVERRIDES);
@@ -630,9 +491,7 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return prefix + "/" + entityName.toLowerCase(Locale.ROOT);
     }
 
-    // resources.<entityName>.<layer>.package (ALLCRUD_PACKAGE_OVERRIDES) wins outright over the
-    // layer's global package (ALLCRUD_LAYER_PACKAGES) when present - same "override replaces,
-    // never merges/concatenates" rule as resolveBasePath above.
+    // See docs/notes/AllcrudSpringCodegen.md#resolvepackage--override-wins-outright-never-merges
     @SuppressWarnings("unchecked")
     private String resolvePackage(String entityName, String layerName) {
         Object overridesValue = additionalProperties().get(ALLCRUD_PACKAGE_OVERRIDES);
@@ -653,18 +512,14 @@ public class AllcrudSpringCodegen extends SpringCodegen {
         return null;
     }
 
-    // The Entity is never generated (out of scope, hand-written by the consumer) and has no
-    // "packages.entity" yml key (rejected - doesn't support per-module/domain entity
-    // packages), so its package can only be discovered by looking at what the consumer
-    // actually wrote: scan sourceRoot for a file literally named "<entityName>.java" and
-    // parse its "package ...;" declaration - line 1, same technique already proven safe for
-    // rewriting that line in generated files (AllcrudGenerator#rewritePackageStatement),
-    // applied here in reverse (reading instead of writing).
+    // See docs/adr/0006-entity-out-of-scope-v1.md - its package can only be discovered by
+    // looking at what the consumer actually wrote: scan sourceRoot for a file literally named
+    // "<entityName>.java" and parse its "package ...;" declaration - line 1, same technique
+    // already proven safe for rewriting that line in generated files
+    // (AllcrudGenerator#rewritePackageStatement), applied here in reverse (reading instead of
+    // writing).
     //
-    // Reflection over the compiled class was considered and rejected: this runs BEFORE
-    // compileJava (that's the entire point of the javaSourceDir/srcDir wiring - generate
-    // source first, compile everything together after), so the Entity is never compiled yet
-    // at this point in a fresh build. Only the source text is available.
+    // See docs/notes/AllcrudSpringCodegen.md#why-reflection-was-rejected-for-resolving-the-entitys-package.
     //
     // Fails loudly, not silently, on both failure modes: zero matches (the consumer hasn't
     // written the entity yet) and more than one match (ambiguous - which one is "the" entity

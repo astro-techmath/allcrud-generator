@@ -95,10 +95,8 @@ class AutoResourceInferenceInternalsCompatTest {
     void referencesSchemaReturnsFalseWhenRequestBodyRefIsUnresolvable() throws Exception {
         // AutoResourceInferenceCompatTest#itemPathMatchedOnlyViaRequestBodySchemaIsStillInferred
         // only covers requestBody != null resolving to a real, matching schema - never the case
-        // where ModelUtils.getReferencedRequestBody itself can't resolve the $ref (a dangling
-        // reference in the spec). Confirmed empirically (not assumed) that this returns null
-        // rather than throwing, which is what lets referencesSchema's requestSchema ternary and
-        // its schemaName.equals(null) check both fall through to false safely.
+        // where the $ref is dangling (unresolvable). See
+        // docs/notes/AutoResourceInferenceInternalsCompatTest.md#dangling-requestbody-ref-falls-through-to-false-without-throwing--the-null-comes-from-getschemafromcontent-not-getreferencedrequestbody
         io.swagger.v3.oas.models.PathItem itemPathItem = new io.swagger.v3.oas.models.PathItem();
         Operation putOperation = new Operation();
         io.swagger.v3.oas.models.parameters.RequestBody danglingRef = new io.swagger.v3.oas.models.parameters.RequestBody();

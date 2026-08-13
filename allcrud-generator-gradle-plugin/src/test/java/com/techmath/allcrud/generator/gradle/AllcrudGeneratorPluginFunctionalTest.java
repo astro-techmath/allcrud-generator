@@ -28,11 +28,7 @@ class AllcrudGeneratorPluginFunctionalTest {
     @TempDir
     Path projectDir;
 
-    // 3 independent fixture setups (spec, config yml, entities) - each writes its own,
-    // never-read-by-another file under projectDir, so there's no real ordering dependency
-    // between them. Merged into one @BeforeEach (JUnit 5 doesn't guarantee execution order
-    // across multiple @BeforeEach methods in the same class without @Order) rather than 3
-    // separate ones relying on declaration order to happen to work.
+    // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#junit-5-doesnt-guarantee-beforeeach-execution-order-without-order
     @BeforeEach
     void setUpProjectFixtures() throws IOException {
         Path specTarget = projectDir.resolve("product-example.yaml");
@@ -48,12 +44,12 @@ class AllcrudGeneratorPluginFunctionalTest {
         // override (Order: generate [pojo, controller] only).
         copyResource("/allcrud-generator-example.yml", projectDir.resolve("allcrud-generator.yml"));
 
-        // Entity generation is out of scope for allcrud-generator's V1 (already decided) -
-        // apiController.mustache/service.mustache reference "Product"/"Order" by a hardcoded
-        // name and package, so something has to provide those classes for compileJava to
-        // resolve against. These are the same TEST FIXTURE - NOT GENERATOR OUTPUT entities
-        // used by the root module's own compat tests (src/test/resources/fixtures), copied
-        // here rather than shared across modules to keep this subproject self-contained.
+        // See docs/adr/0006-entity-out-of-scope-v1.md - apiController.mustache/service.mustache
+        // reference "Product"/"Order" by a hardcoded name and package, so something has to
+        // provide those classes for compileJava to resolve against. These are the same TEST
+        // FIXTURE - NOT GENERATOR OUTPUT entities used by the root module's own compat tests
+        // (src/test/resources/fixtures), copied here rather than shared across modules to keep
+        // this subproject self-contained.
         Path entityDir = projectDir.resolve("src/main/java/org/openapitools/entity");
         Files.createDirectories(entityDir);
         copyResource("/fixtures/Product.java", entityDir.resolve("Product.java"));
@@ -113,13 +109,8 @@ class AllcrudGeneratorPluginFunctionalTest {
     private void writeBuildFiles() {
         write("settings.gradle.kts", "rootProject.name = \"allcrud-generator-plugin-fixture\"\n");
 
-        // 0.1.0-beta / io.github.astro-techmath:allcrud - same pinned coordinate as
-        // gradle.properties in the root module (allcrudCoreVersion). Hardcoded here
-        // deliberately: this is a throwaway fixture project, not production code.
-        // allcrud's published POM leaves its Spring Boot starters unversioned (managed by
-        // the same BOM at allcrud's own build time, not baked into the published POM) -
-        // any consumer, this fixture included, has to import that BOM itself. Same reason
-        // allcrud-generator-gradle-plugin/build.gradle.kts does it.
+        // See docs/adr/0011-pinned-core-version-drift-guard.md and
+        // docs/notes/AllcrudGeneratorPluginFunctionalTest.md#allcruds-published-pom-leaves-spring-boot-starters-unversioned
         write("build.gradle.kts", """
                 plugins {
                     java
@@ -139,22 +130,13 @@ class AllcrudGeneratorPluginFunctionalTest {
 
                 dependencies {
                     implementation("io.github.astro-techmath:allcrud:0.1.0-beta")
-                    // allcrud's own POM declares these at "runtime" scope, not "compile" -
-                    // by design, a Spring Boot library expects the consuming app to bring
-                    // its own starters at compile scope, exactly like any real app already
-                    // would. This fixture simulates that real app dependency, it's not
-                    // compensating for a gap in allcrud or the plugin.
+                    // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#allcruds-pom-declares-its-own-dependencies-at-runtime-scope-not-compile
                     implementation("org.springframework.boot:spring-boot-starter-web")
                     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
                     implementation("org.springframework.boot:spring-boot-starter-validation")
-                    // openapi-generator's swagger2AnnotationLibrary (this project's default)
-                    // emits @Schema annotations on generated models - a real consumer project
-                    // needs this on its own compile classpath, same reasoning as the starters
-                    // above.
+                    // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#openapi-generators-swagger2annotationlibrary-emits-schema-annotations
                     implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.28")
-                    // The stock "spring" generator also emits SpringDocConfiguration.java by
-                    // default (io.swagger.v3.oas.models.*) - not an allcrud-generator concern,
-                    // just what a real consumer of the underlying spring library needs.
+                    // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#the-stock-spring-generator-also-emits-springdocconfigurationjava-by-default
                     implementation("io.swagger.core.v3:swagger-models-jakarta:2.2.28")
                 }
 

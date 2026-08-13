@@ -15,13 +15,7 @@ import org.gradle.api.tasks.TaskAction;
 // or config-parsing logic here, that's all AllcrudGeneratorYamlConfig (see generate() below).
 public abstract class AllcrudGenerateTask extends DefaultTask {
 
-    // javaSourceDir's convention is wired in AllcrudGeneratorPlugin from the extension's
-    // outputDir, NOT from this task's own getOutputDir() - Gradle disallows deriving one
-    // @OutputDirectory of a task from another @OutputDirectory of that same task via
-    // map()/flatMap() ("Querying the mapped value of a task output property before the
-    // task has completed is not supported"), even when both ultimately share one upstream
-    // source. Also no longer appends "src/main/java" - see AllcrudGeneratorPlugin for why
-    // outputDir already IS the Java source root now.
+    // See docs/notes/AllcrudGenerateTask.md#javasourcedirjavatestsourcedir--why-theyre-separate-properties-from-outputdirtestoutputdir
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -37,11 +31,7 @@ public abstract class AllcrudGenerateTask extends DefaultTask {
     @OutputDirectory
     public abstract DirectoryProperty getJavaSourceDir();
 
-    // Same duplicate-property reason as getJavaSourceDir() above (Gradle disallows deriving one
-    // @OutputDirectory of a task from another @OutputDirectory of that same task before the task
-    // has run) - getTestOutputDir() is what generate() reads, getJavaTestSourceDir() is what
-    // AllcrudGeneratorPlugin wires the "test" source set's java srcDir from, both fed by the
-    // extension's single testOutputDir convention.
+    // See docs/notes/AllcrudGenerateTask.md#javasourcedirjavatestsourcedir--why-theyre-separate-properties-from-outputdirtestoutputdir
     @OutputDirectory
     public abstract DirectoryProperty getTestOutputDir();
 

@@ -12,11 +12,8 @@ import org.apache.maven.project.MavenProject;
 import java.io.File;
 
 // Pure Maven-lifecycle glue over AllcrudGenerator.generate(GenerationRequest) - no generation or
-// config-parsing logic here, that's all AllcrudGeneratorYamlConfig. Mirrors
-// AllcrudGenerateTask/AllcrudGeneratorExtension's parameter surface from the Gradle plugin - same
-// 4 inputs, same defaults - but unlike Gradle (source sets inferred automatically from a task's
-// declared @OutputDirectory), Maven has no such inference: outputDir/testOutputDir have to be
-// registered on the MavenProject explicitly below, or compileJava/compileTestJava never see them.
+// config-parsing logic here, that's all AllcrudGeneratorYamlConfig.
+// See docs/notes/AllcrudGenerateMojo.md#no-automatic-source-set-inference--maven-needs-explicit-registration
 @Mojo(name = "generate", defaultPhase = LifecyclePhase.GENERATE_SOURCES)
 public class AllcrudGenerateMojo extends AbstractMojo {
 

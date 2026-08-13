@@ -1,9 +1,7 @@
-{{! allcrud-generator: brand-new template, NOT an override of an embedded openapi-generator
-    file (and NOT related to the stock "converter.mustache" that ships with the spring
-    generator, which is Spring's enum string-conversion beans - unrelated concept, same
-    filename only by coincidence; this one replaces it because it's registered under the
-    same name via CodegenConfig#apiTemplateFiles() in the generation driver code, see
-    AllcrudGenerator, with output suffix "Converter.java").
+{{! See docs/templates-reference.md - NOT related to the stock "converter.mustache" that ships
+    with the spring generator (Spring's enum string-conversion beans, unrelated concept, same
+    filename only by coincidence; this one replaces it via CodegenConfig#apiTemplateFiles(),
+    see AllcrudGenerator, with output suffix "Converter.java").
 
     Generates a skeleton implementing com.techmath.allcrud.converter.Converter, with both
     methods throwing UnsupportedOperationException. This is a new pattern established by
