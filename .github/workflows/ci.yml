@@ -71,7 +71,12 @@ jobs:
       - name: Publish root artifact to Maven local
         run: ./gradlew publishToMavenLocal
 
+      # Workflows triggered by Dependabot run with no repo secrets by design (GitHub's
+      # "pwn request" protection, same reasoning as the verification-metadata hint above) -
+      # SONAR_TOKEN would be empty and the step would fail regardless. A dependency bump PR
+      # also has no new project code to analyze, so skipping is correct, not just a workaround.
       - name: SonarQube analysis
+        if: github.actor != 'dependabot[bot]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
