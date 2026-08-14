@@ -77,9 +77,9 @@ dependencyManagement {
     }
 }
 
-val allcrudCoreGroup: String by project
-val allcrudCoreArtifact: String by project
-val allcrudCoreVersion: String by project
+val allcrudCoreGroup = project.property("allcrudCoreGroup") as String
+val allcrudCoreArtifact = project.property("allcrudCoreArtifact") as String
+val allcrudCoreVersion = project.property("allcrudCoreVersion") as String
 
 repositories {
     mavenLocal()

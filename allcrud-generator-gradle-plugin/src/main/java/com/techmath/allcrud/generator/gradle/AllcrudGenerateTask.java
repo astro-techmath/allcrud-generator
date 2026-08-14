@@ -10,9 +10,14 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.UntrackedTask;
 
 // Pure Gradle-lifecycle glue over AllcrudGenerator.generate(GenerationRequest) - no generation
 // or config-parsing logic here, that's all AllcrudGeneratorYamlConfig (see generate() below).
+@UntrackedTask(because = "generate() reads pre-existing file state under outputDir/testOutputDir "
+        + "(the generate-once-never-overwrite policy) that isn't captured by the declared "
+        + "@InputFile/@OutputDirectory properties - caching this task could replay a stale "
+        + "result after those files changed outside Gradle's view")
 public abstract class AllcrudGenerateTask extends DefaultTask {
 
     // See docs/notes/AllcrudGenerateTask.md#javasourcedirjavatestsourcedir--why-theyre-separate-properties-from-outputdirtestoutputdir
