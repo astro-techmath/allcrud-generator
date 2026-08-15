@@ -1,0 +1,62 @@
+name: Notify Hotfix Propagation
+
+# A hotfix/* PR merges straight into staging. Nothing here checks whether the same fix also
+# lands on develop - if it doesn't, the fix is silently missing from the next regular release
+# cut from develop. This workflow doesn't propagate anything automatically (that stays a manual
+# step, done however fits the situation) - it just makes sure the reminder can't be missed, by
+# posting on the PR and in the run's job summary.
+on:
+  pull_request:
+    branches: [staging]
+    types: [closed]
+
+jobs:
+  notify:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging' && startsWith(github.event.pull_request.head.ref, 'hotfix/')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Post propagation reminder
+        run: |
+          set -euo pipefail
+          MARKER="<!-- hotfix-propagation-reminder -->"
+          MESSAGE=$(cat <<EOF
+          $MARKER
+          ⚠️ **Hotfix propagation reminder**
+
+          This hotfix was merged into \`staging\`. Please make sure this change also
+          reaches \`develop\` - without it, the fix may be missing from \`develop\`
+          and could resurface in a future regular release.
+
+          If it hasn't been propagated yet, please do so before considering this
+          fix fully applied.
+          EOF
+          )
+
+          # Summary written first so it lands even if the comment step below fails
+          # (e.g. transient API error) - the reminder should never silently disappear.
+          echo "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+
+          # Idempotent: reruns of this job (e.g. a manual re-run) update the existing
+          # reminder instead of piling up duplicate comments on the same PR.
+          #
+          # --paginate + -q/--jq would apply the jq filter to each page separately (not to
+          # the combined result), so a marker comment sitting on a later page could be missed -
+          # documented gh CLI behavior, not a bug. --slurp collects all pages into one array
+          # first; gh api rejects --slurp combined with -q/--jq, so the filter runs afterward,
+          # piped to a separate jq. Also checks the comment author is github-actions[bot], not
+          # just any comment that happens to contain the marker text.
+          existing_id=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate --slurp \
+            | jq -r --arg marker "$MARKER" \
+              'add | map(select(.user.login == "github-actions[bot]" and (.body | contains($marker))))[0].id // empty')
+
+          if [ -n "$existing_id" ]; then
+            gh api "repos/$REPO/issues/comments/$existing_id" -X PATCH -f body="$MESSAGE" > /dev/null
+          else
+            echo "$MESSAGE" | gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file -
+          fi
