@@ -88,7 +88,7 @@ repositories {
 
 val openapiGeneratorVersion = "7.23.0"
 val junitVersion = "5.11.0"
-val snakeYamlVersion = "2.4"
+val snakeYamlVersion = "2.6"
 
 dependencies {
     implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
