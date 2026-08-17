@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, staging, develop, 'release/**', 'hotfix/**']
+    branches: [main, next, 'release/**']
   pull_request:
-    branches: [main, staging, develop, 'release/**', 'hotfix/**']
+    branches: [main, next, 'release/**']
 
 # Cancels a still-running run for the same PR (or the same branch, for direct pushes) as soon as
 # a newer one starts - a fast sequence of pushes shouldn't burn CI minutes/quota building commits
