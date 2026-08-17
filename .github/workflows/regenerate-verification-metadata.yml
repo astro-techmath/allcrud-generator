@@ -49,16 +49,40 @@ jobs:
       # into the run block below, it would be shell-injectable (e.g. a branch name containing
       # `; rm -rf .` or command substitution). Passed through an env var instead so the shell
       # only ever sees it as a plain string value, never as script it could parse.
-      - name: Commit and push
+      #
+      # Commits via the GitHub Contents API instead of a plain git push - a plain-pushed commit
+      # is never signed (no local GPG key on the runner), and every branch this can target
+      # (main/staging/develop) requires signed commits. The ruleset checks every commit in the
+      # push that isn't already reachable from another branch, so it blocks the eventual merge
+      # even though a squash would synthesize a fresh commit - confirmed against GitHub's own
+      # docs on the required_signatures rule. The Contents API constructs the commit server-side
+      # with no custom author/committer/signature data, which GitHub signs itself (web-flow key) -
+      # same mechanism already confirmed for PR merge commits.
+      - name: Commit via Contents API (auto-signed by GitHub)
         env:
           BRANCH: ${{ inputs.branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FILE: gradle/verification-metadata.xml
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gradle/verification-metadata.xml
-          if git diff --cached --quiet; then
-            echo "No changes to gradle/verification-metadata.xml - nothing to commit."
-          else
-            git commit -m "chore: regenerate gradle/verification-metadata.xml"
-            git push origin "HEAD:$BRANCH"
+          set -euo pipefail
+          if git diff --quiet -- "$FILE"; then
+            echo "No changes to $FILE - nothing to commit."
+            exit 0
           fi
+          current_sha=$(gh api "repos/$REPO/contents/$FILE?ref=$BRANCH" -q '.sha')
+
+          # content is base64 of a multi-KB XML file - too large for the OS's argument-length
+          # limit, whether passed as a -f/-F CLI value or as a jq --arg (a $(...) substitution
+          # used as a command argument still goes through argv, same limit either way). Written
+          # to a file and loaded with --rawfile instead, which jq reads directly, never touching
+          # argv. The payload itself is then sent via --input, streaming the body instead of
+          # building it from CLI flags.
+          base64 -w0 "$FILE" > /tmp/content.b64
+          jq -n --rawfile content /tmp/content.b64 \
+            --arg message "chore: regenerate gradle/verification-metadata.xml" \
+            --arg sha "$current_sha" \
+            --arg branch "$BRANCH" \
+            '{message: $message, content: $content, sha: $sha, branch: $branch}' > /tmp/contents-payload.json
+
+          gh api "repos/$REPO/contents/$FILE" -X PUT --input /tmp/contents-payload.json -q '.commit.sha'
