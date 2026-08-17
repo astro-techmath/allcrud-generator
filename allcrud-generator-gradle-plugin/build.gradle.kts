@@ -17,7 +17,7 @@ jacoco {
     toolVersion = "0.8.15"
 }
 
-val junitVersion = "5.11.0"
+val junitVersion = "6.1.3"
 
 // The allcrud core artifact (see project(":") below) declares its Spring Boot starters
 // without explicit versions, managed by this same BOM in the root module - it doesn't
