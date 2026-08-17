@@ -1,7 +1,8 @@
 name: TMP Hash Kotlin Artifacts
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [fix/smoke-test-findings]
 
 jobs:
   hash:
