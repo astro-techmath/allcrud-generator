@@ -7,22 +7,9 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     groups:
-      spring-boot:
+      all-dependencies:
         patterns:
-          - "org.springframework.boot:*"
-      jackson:
-        patterns:
-          - "tools.jackson*:*"
-          - "com.fasterxml.jackson*:*"
-      testing:
-        patterns:
-          - "org.instancio:*"
-          - "io.rest-assured:*"
-          - "org.testcontainers:*"
-          - "org.junit*:*"
-      openapi-generator:
-        patterns:
-          - "org.openapitools:*"
+          - "*"
 
   - package-ecosystem: "gradle"
     directory: "/allcrud-generator-gradle-plugin"
@@ -30,6 +17,10 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "maven"
     directory: "/allcrud-generator-maven-plugin"
@@ -37,3 +28,7 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
