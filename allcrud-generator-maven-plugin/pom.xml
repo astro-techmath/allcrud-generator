@@ -6,7 +6,7 @@
 
     <groupId>io.github.astro-techmath</groupId>
     <artifactId>allcrud-generator-maven-plugin</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>maven-plugin</packaging>
 
     <properties>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>io.github.astro-techmath</groupId>
             <artifactId>allcrud-generator</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
+            <version>0.1.0</version>
         </dependency>
     </dependencies>
 
