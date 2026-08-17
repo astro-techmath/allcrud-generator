@@ -19,9 +19,7 @@ jacoco {
 
 val junitVersion = "6.1.3"
 
-// The allcrud core artifact (see project(":") below) declares its Spring Boot starters
-// without explicit versions, managed by this same BOM in the root module - it doesn't
-// propagate transitively through project(":"), so it's imported here too.
+// See docs/notes/allcrud-generator-gradle-plugin-build.gradle.kts.md#springbootversion-bom-re-imported--doesnt-propagate-through-project-reference
 val springBootVersion = "4.1.0"
 
 dependencyManagement {

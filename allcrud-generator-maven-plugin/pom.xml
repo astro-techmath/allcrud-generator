@@ -19,10 +19,7 @@
         <maven.core.version>3.9.16</maven.core.version>
     </properties>
 
-    <!-- Separate Maven-built module, independent from the root Gradle multi-project build
-         (see settings.gradle.kts - it only includes allcrud-generator-gradle-plugin). Generating
-         a maven-plugin's plugin.xml requires the maven-plugin-plugin descriptor goal, which runs
-         as part of Maven's own lifecycle - there is no Gradle-native equivalent. -->
+    <!-- See docs/notes/allcrud-generator-maven-plugin-pom.xml.md#separate-maven-built-module-maven-plugin-plugin-has-no-gradle-native-equivalent -->
 
     <dependencies>
         <dependency>
@@ -43,11 +40,7 @@
             <version>${maven.plugin.annotations.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- AllcrudGenerator/AllcrudGeneratorYamlConfig - the public generation API this plugin
-             wires into the Maven lifecycle. No generation logic lives here, only the glue.
-             Resolved from mavenLocal (published via the root Gradle build's publishToMavenLocal
-             - see build.gradle.kts there), same coordinate the Gradle plugin consumes as
-             project(":"). -->
+        <!-- See docs/notes/allcrud-generator-maven-plugin-pom.xml.md#allcrud-generator-dependency-resolved-from-mavenlocal-same-coordinate-as-the-gradle-plugin -->
         <dependency>
             <groupId>io.github.astro-techmath</groupId>
             <artifactId>allcrud-generator</artifactId>
