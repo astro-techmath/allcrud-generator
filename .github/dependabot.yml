@@ -3,8 +3,7 @@ updates:
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
     open-pull-requests-limit: 10
     groups:
       all-dependencies:
@@ -14,8 +13,7 @@ updates:
   - package-ecosystem: "gradle"
     directory: "/allcrud-generator-gradle-plugin"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
     open-pull-requests-limit: 10
     groups:
       all-dependencies:
@@ -25,8 +23,7 @@ updates:
   - package-ecosystem: "maven"
     directory: "/allcrud-generator-maven-plugin"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
     open-pull-requests-limit: 10
     groups:
       all-dependencies:
