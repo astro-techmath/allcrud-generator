@@ -1,0 +1,84 @@
+name: TMP Exhaust Kotlin/Groovy Verification Graph
+
+on:
+  push:
+    branches: [fix/smoke-test-findings]
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hash the newly reported groovy artifact
+        run: |
+          set -euo pipefail
+          curl -sSfL -o groovy-4.0.32.module \
+            https://repo.gradle.org/gradle/libs-releases/org/apache/groovy/groovy/4.0.32/groovy-4.0.32.module
+          echo "=== sha256 ==="
+          sha256sum groovy-4.0.32.module
+
+      - name: Set up disposable project to force metadata-only resolution of the full set
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/exhaust-test/gradle
+          cat > /tmp/exhaust-test/settings.gradle.kts << 'SETTLE'
+          pluginManagement {
+              repositories {
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = "exhaust-test"
+          SETTLE
+          cat > /tmp/exhaust-test/build.gradle.kts << 'BUILD'
+          val probe by configurations.creating
+
+          repositories {
+              maven { url = uri("https://plugins.gradle.org/m2") }
+              maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+          }
+
+          dependencies {
+              probe("org.jetbrains.kotlin:kotlin-reflect:2.4.0")
+              probe("org.jetbrains.kotlin:kotlin-stdlib:2.4.0")
+              probe("org.apache.groovy:groovy:4.0.32")
+          }
+
+          tasks.register("resolveProbeMetadataOnly") {
+              doLast {
+                  val components = probe.incoming.resolutionResult.allComponents
+                  println("RESOLVED METADATA OK: " + components.map { it.id })
+              }
+          }
+          BUILD
+
+      - name: Checkout this branch's verification-metadata.xml + wrapper
+        uses: actions/checkout@v4
+        with:
+          path: repo-checkout
+
+      - name: Wire wrapper + current verification-metadata.xml (kotlin already fixed) into the probe project
+        run: |
+          set -euo pipefail
+          cp -r repo-checkout/gradle/wrapper /tmp/exhaust-test/gradle/wrapper
+          cp repo-checkout/gradlew repo-checkout/gradlew.bat /tmp/exhaust-test/
+          chmod +x /tmp/exhaust-test/gradlew
+          cp repo-checkout/gradle/verification-metadata.xml /tmp/exhaust-test/gradle/verification-metadata.xml
+
+      - name: Add groovy checksum (computed above) to the probe's own metadata, then resolve
+        run: |
+          set -euo pipefail
+          GROOVY_SHA=$(sha256sum groovy-4.0.32.module | awk '{print $1}')
+          sha="$GROOVY_SHA"
+          file=/tmp/exhaust-test/gradle/verification-metadata.xml
+          marker='<component group="org.jetbrains.kotlin" name="kotlin-stdlib" version="2.4.0">'
+          insert="<component group=\"org.apache.groovy\" name=\"groovy\" version=\"4.0.32\"><artifact name=\"groovy-4.0.32.module\"><sha256 value=\"$sha\" origin=\"tmp probe\"/></artifact></component>"
+          awk -v marker="$marker" -v insert="$insert" '{print} $0 ~ marker {print insert}' "$file" > "${file}.new"
+          mv "${file}.new" "$file"
+          grep -A2 "org.apache.groovy" "$file"
+
+      - name: Run the metadata-only resolution against ALL 3 coordinates at once (continue on failure to see full picture)
+        working-directory: /tmp/exhaust-test
+        run: |
+          set -euo pipefail
+          ./gradlew resolveProbeMetadataOnly --stacktrace --continue 2>&1 | tee /tmp/probe-output.log || true
+          echo "=== grep for any remaining verification failures ==="
+          grep -B2 -A15 "Dependency verification failed" /tmp/probe-output.log || echo "NO FURTHER VERIFICATION FAILURES FOUND"
