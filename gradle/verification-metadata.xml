@@ -3,6 +3,11 @@
    <configuration>
       <verify-metadata>true</verify-metadata>
       <verify-signatures>false</verify-signatures>
+      <trusted-artifacts>
+         <trust file=".*-sources[.]jar" regex="true"/>
+         <trust file=".*-javadoc[.]jar" regex="true"/>
+         <trust file="gradle-[0-9.]+-src.zip" regex="true"/>
+      </trusted-artifacts>
    </configuration>
    <components>
       <component group="ch.qos.logback" name="logback-classic" version="1.5.34">
