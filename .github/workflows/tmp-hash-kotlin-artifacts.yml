@@ -1,0 +1,18 @@
+name: TMP Hash Kotlin Artifacts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  hash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and hash the 2 missing artifacts
+        run: |
+          set -euo pipefail
+          curl -sSfL -o kotlin-reflect-2.4.0.pom \
+            https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-reflect/2.4.0/kotlin-reflect-2.4.0.pom
+          curl -sSfL -o kotlin-stdlib-2.4.0.module \
+            https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/2.4.0/kotlin-stdlib-2.4.0.module
+          echo "=== sha256 ==="
+          sha256sum kotlin-reflect-2.4.0.pom kotlin-stdlib-2.4.0.module
