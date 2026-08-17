@@ -1,37 +1,48 @@
-name: Notify Hotfix Propagation
+name: Notify Bugfix Propagation
 
-# A hotfix/* PR merges straight into staging. Nothing here checks whether the same fix also
-# lands on develop - if it doesn't, the fix is silently missing from the next regular release
-# cut from develop. This workflow doesn't propagate anything automatically (that stays a manual
-# step, done however fits the situation) - it just makes sure the reminder can't be missed, by
-# posting on the PR and in the run's job summary.
+# A bugfix/* PR merges straight into the release/* branch it was cut from. Nothing here checks
+# whether the same fix also lands on next - if it doesn't, the fix is silently missing from
+# next and could resurface in a future release cut from it. This workflow doesn't propagate
+# anything automatically (that stays a manual step, done however fits the situation) - it just
+# makes sure the reminder can't be missed, by posting on the PR and in the run's job summary.
 on:
   pull_request:
-    branches: [staging]
+    branches: ['release/**']
     types: [closed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  # Intentionally false, not the default: cancelling a run mid-sequence between reading
+  # the marker comment and creating/updating it could leave the comment half-written.
+  # Serializing (not interrupting) same-PR reruns keeps that sequence atomic.
+  cancel-in-progress: false
 
 jobs:
   notify:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging' && startsWith(github.event.pull_request.head.ref, 'hotfix/')
+    name: Post propagation reminder
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.base.ref, 'release/') && startsWith(github.event.pull_request.head.ref, 'bugfix/')
     runs-on: ubuntu-latest
+    # contents: read is not needed here (no repository content is read, only PR/issue
+    # metadata via the API); pull-requests: write is for posting/updating the comment.
     permissions:
       pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
     steps:
       - name: Post propagation reminder
         run: |
           set -euo pipefail
-          MARKER="<!-- hotfix-propagation-reminder -->"
+          MARKER="<!-- bugfix-propagation-reminder -->"
           MESSAGE=$(cat <<EOF
           $MARKER
-          ⚠️ **Hotfix propagation reminder**
+          ⚠️ **Bugfix propagation reminder**
 
-          This hotfix was merged into \`staging\`. Please make sure this change also
-          reaches \`develop\` - without it, the fix may be missing from \`develop\`
-          and could resurface in a future regular release.
+          This bugfix was merged into \`$BASE_REF\`. Please make sure this change also
+          reaches \`next\` - without it, the fix may be missing from \`next\` and could
+          resurface in a future release.
 
           If it hasn't been propagated yet, please do so before considering this
           fix fully applied.

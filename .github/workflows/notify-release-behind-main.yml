@@ -1,0 +1,74 @@
+name: Notify Release Behind Main
+
+# main can advance while a release/* branch is still open for stabilization. Nothing else
+# checks whether that release branch fell behind - if it did, whatever landed on main since
+# the release was cut is missing from it. This workflow doesn't merge anything automatically
+# (that stays a manual decision) - it just flags open release/* PRs targeting main whose
+# branch is now behind or diverged from it, via a comment on the PR.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    # contents: read is required for the Compare API call below (it reads repository
+    # content, not just PR metadata); pull-requests: write is for listing PRs and
+    # posting/updating the reminder comment.
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check open release/* PRs against main
+        run: |
+          set -euo pipefail
+          MARKER="<!-- release-behind-main-reminder -->"
+
+          # gh pr list caps at 30 results by default; gh api --paginate --slurp collects
+          # every page into one array first, matching the pagination approach already used
+          # below for the comment lookup.
+          pr_list=$(gh api "repos/$REPO/pulls?state=open&base=main" --paginate --slurp \
+            | jq -c '[add[] | {number, headRefName: .head.ref}] | map(select(.headRefName | startswith("release/")))')
+
+          echo "$pr_list" | jq -c '.[]' | while read -r pr; do
+            number=$(echo "$pr" | jq -r '.number')
+            head=$(echo "$pr" | jq -r '.headRefName')
+
+            status=$(gh api "repos/$REPO/compare/main...$head" -q '.status')
+
+            if [ "$status" != "behind" ] && [ "$status" != "diverged" ]; then
+              continue
+            fi
+
+            MESSAGE=$(cat <<EOF
+          $MARKER
+          ⚠️ **Release branch behind main**
+
+          \`main\` has advanced since \`$head\` was cut (comparison status: \`$status\`).
+          Consider forward-merging \`main\` into this branch so the release doesn't miss
+          anything already shipped to production.
+          EOF
+          )
+
+            echo "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+
+            # Idempotent: reruns update the existing reminder instead of piling up duplicate
+            # comments. See notify-bugfix-propagation.yml for why --paginate --slurp (not
+            # --jq alone) is required to search across all comment pages correctly.
+            existing_id=$(gh api "repos/$REPO/issues/$number/comments" --paginate --slurp \
+              | jq -r --arg marker "$MARKER" \
+                'add | map(select(.user.login == "github-actions[bot]" and (.body | contains($marker))))[0].id // empty')
+
+            if [ -n "$existing_id" ]; then
+              gh api "repos/$REPO/issues/comments/$existing_id" -X PATCH -f body="$MESSAGE" > /dev/null
+            else
+              echo "$MESSAGE" | gh pr comment "$number" --repo "$REPO" --body-file -
+            fi
+          done
