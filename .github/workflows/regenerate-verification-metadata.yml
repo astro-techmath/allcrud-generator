@@ -70,7 +70,23 @@ jobs:
             echo "No changes to $FILE - nothing to commit."
             exit 0
           fi
+
+          # The regenerated content above was built from the tree as of checkout - but the sha
+          # this PUT needs is fetched fresh, right now, right before writing. If the branch moved
+          # in between (another run, or any other push landing on it), that fresh sha still
+          # matches the *current* remote state, so the PUT would succeed - and silently overwrite
+          # whatever landed in between with output regenerated from the now-stale checkout,
+          # with no error at all. Guarded by comparing the checked-out blob for this file
+          # (git's own tracking of what was actually built against) with the current remote blob
+          # right before writing - abort instead of overwriting if they don't match; the checked
+          # -out sha is also what's sent as the PUT's sha, not the freshly-fetched one, since by
+          # this point they're confirmed identical.
+          checkout_sha=$(git rev-parse "HEAD:$FILE")
           current_sha=$(gh api "repos/$REPO/contents/$FILE?ref=$BRANCH" -q '.sha')
+          if [ "$current_sha" != "$checkout_sha" ]; then
+            echo "::error title=Stale checkout, aborting::$FILE on $BRANCH changed since this workflow checked it out (checkout blob $checkout_sha, current remote blob $current_sha) - another push landed on $BRANCH while this run was building. Not overwriting it. Re-run this workflow against $BRANCH's current state instead."
+            exit 1
+          fi
 
           # content is base64 of a multi-KB XML file - too large for the OS's argument-length
           # limit, whether passed as a -f/-F CLI value or as a jq --arg (a $(...) substitution
@@ -81,7 +97,7 @@ jobs:
           base64 -w0 "$FILE" > /tmp/content.b64
           jq -n --rawfile content /tmp/content.b64 \
             --arg message "chore: regenerate gradle/verification-metadata.xml" \
-            --arg sha "$current_sha" \
+            --arg sha "$checkout_sha" \
             --arg branch "$BRANCH" \
             '{message: $message, content: $content, sha: $sha, branch: $branch}' > /tmp/contents-payload.json
 
