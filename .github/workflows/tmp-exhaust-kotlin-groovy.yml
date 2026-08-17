@@ -69,7 +69,7 @@ jobs:
           GROOVY_SHA=$(sha256sum groovy-4.0.32.module | awk '{print $1}')
           sha="$GROOVY_SHA"
           file=/tmp/exhaust-test/gradle/verification-metadata.xml
-          marker='<component group="org.jetbrains.kotlin" name="kotlin-stdlib" version="2.4.0">'
+          marker='<components>'
           insert="<component group=\"org.apache.groovy\" name=\"groovy\" version=\"4.0.32\"><artifact name=\"groovy-4.0.32.module\"><sha256 value=\"$sha\" origin=\"tmp probe\"/></artifact></component>"
           awk -v marker="$marker" -v insert="$insert" '{print} $0 ~ marker {print insert}' "$file" > "${file}.new"
           mv "${file}.new" "$file"
