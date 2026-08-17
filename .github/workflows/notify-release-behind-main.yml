@@ -9,10 +9,18 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   notify:
     runs-on: ubuntu-latest
+    # contents: read is required for the Compare API call below (it reads repository
+    # content, not just PR metadata); pull-requests: write is for listing PRs and
+    # posting/updating the reminder comment.
     permissions:
+      contents: read
       pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,8 +31,11 @@ jobs:
           set -euo pipefail
           MARKER="<!-- release-behind-main-reminder -->"
 
-          pr_list=$(gh pr list --repo "$REPO" --base main --state open \
-            --json number,headRefName --jq '[.[] | select(.headRefName | startswith("release/"))]')
+          # gh pr list caps at 30 results by default; gh api --paginate --slurp collects
+          # every page into one array first, matching the pagination approach already used
+          # below for the comment lookup.
+          pr_list=$(gh api "repos/$REPO/pulls?state=open&base=main" --paginate --slurp \
+            | jq -c '[add[] | {number, headRefName: .head.ref}] | map(select(.headRefName | startswith("release/")))')
 
           echo "$pr_list" | jq -c '.[]' | while read -r pr; do
             number=$(echo "$pr" | jq -r '.number')

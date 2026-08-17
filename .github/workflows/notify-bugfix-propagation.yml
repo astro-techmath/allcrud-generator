@@ -10,10 +10,20 @@ on:
     branches: ['release/**']
     types: [closed]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  # Intentionally false, not the default: cancelling a run mid-sequence between reading
+  # the marker comment and creating/updating it could leave the comment half-written.
+  # Serializing (not interrupting) same-PR reruns keeps that sequence atomic.
+  cancel-in-progress: false
+
 jobs:
   notify:
+    name: Post propagation reminder
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.base.ref, 'release/') && startsWith(github.event.pull_request.head.ref, 'bugfix/')
     runs-on: ubuntu-latest
+    # contents: read is not needed here (no repository content is read, only PR/issue
+    # metadata via the API); pull-requests: write is for posting/updating the comment.
     permissions:
       pull-requests: write
     env:
