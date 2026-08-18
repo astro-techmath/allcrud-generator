@@ -62,7 +62,6 @@ val allcrudCoreArtifact = project.property("allcrudCoreArtifact") as String
 val allcrudCoreVersion = project.property("allcrudCoreVersion") as String
 
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
