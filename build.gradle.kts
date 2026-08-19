@@ -9,6 +9,7 @@ plugins {
     java
     application
     jacoco
+    signing
     id("io.spring.dependency-management") version "1.1.7"
     id("org.sonarqube") version "7.4.0.8496"
     id("com.vanniktech.maven.publish") version "0.37.0"
@@ -143,6 +144,20 @@ mavenPublishing {
 
     publishToMavenCentral()
     signAllPublications()
+}
+
+// signAllPublications() wires signing into every publish task unconditionally, including
+// publishToMavenLocal - which CI's own "Publish root artifact to Maven local" step (needed so the
+// Maven module can resolve this project as a dependency) and release.yml's test gate both call,
+// neither with a signing key present nor needing one: mavenLocal resolution never checks .asc
+// files, only a real Central publish does. Confirmed as a real CI failure (No configured
+// signatory), not assumed. setRequired with a lazy closure is the documented Gradle signing-plugin
+// idiom for this - required only when the real publish task is actually in the graph, so
+// publishToMavenLocal silently skips signing instead of failing when no key is configured.
+signing {
+    setRequired({
+        gradle.taskGraph.allTasks.any { it.name == "publishAndReleaseToMavenCentral" }
+    })
 }
 
 // Job 2: manual/on-demand check for a newer core version on Maven Central.

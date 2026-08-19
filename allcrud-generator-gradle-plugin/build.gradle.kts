@@ -2,6 +2,7 @@ plugins {
     java
     `java-gradle-plugin`
     jacoco
+    signing
     id("io.spring.dependency-management") version "1.1.7"
     id("com.vanniktech.maven.publish") version "0.37.0"
 }
@@ -83,6 +84,15 @@ mavenPublishing {
 
     publishToMavenCentral()
     signAllPublications()
+}
+
+// See build.gradle.kts (root) for the full rationale - same fix, same reason: signAllPublications()
+// makes publishToMavenLocal require a signatory too, which fails in CI where no key is present and
+// none is needed for local-only resolution.
+signing {
+    setRequired({
+        gradle.taskGraph.allTasks.any { it.name == "publishAndReleaseToMavenCentral" }
+    })
 }
 
 tasks.withType<Test> {
