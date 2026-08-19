@@ -53,11 +53,15 @@ jobs:
           ./gradlew build
           ./gradlew publishToMavenLocal
 
+      # gpg.skip defaults to true in the pom (see the property's own comment there) so that CI's
+      # regular, non-release `mvn verify` never needs a key - this is the one place that default
+      # is deliberately overridden, since the whole point of this gate is confirming real signing
+      # works before the actual deploy below.
       - name: Build, test, and sign Maven plugin - publish gate
         env:
           SIGNING_KEY_PASSPHRASE: ${{ secrets.SIGNING_KEY_PASSPHRASE }}
         run: |
-          mvn -f allcrud-generator-maven-plugin/pom.xml verify
+          mvn -f allcrud-generator-maven-plugin/pom.xml verify -Dgpg.skip=false
 
       - name: Publish Gradle artifacts (root + gradle-plugin) to Maven Central
         env:
@@ -78,4 +82,4 @@ jobs:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY_PASSPHRASE: ${{ secrets.SIGNING_KEY_PASSPHRASE }}
-        run: mvn -f allcrud-generator-maven-plugin/pom.xml deploy
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml deploy -Dgpg.skip=false

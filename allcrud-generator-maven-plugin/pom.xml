@@ -38,6 +38,15 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Same class of bug already fixed on the Gradle side (signAllPublications requiring a
+             signatory even for publishToMavenLocal): maven-gpg-plugin's sign goal, bound to the
+             verify phase, otherwise requires a real keyring for every plain `mvn verify` - which is
+             exactly what CI's own regular build/test step runs, with no key configured (correctly
+             so, it's not a real publish). gpg.skip is the plugin's own native property (property
+             expression "gpg.skip", built-in default false) - overridden to true here, then flipped
+             back with -Dgpg.skip=false only in release.yml's real `mvn deploy` step. Confirmed as a
+             real CI failure (gpg: no default secret key), not assumed. -->
+        <gpg.skip>true</gpg.skip>
         <maven.plugin.api.version>3.9.16</maven.plugin.api.version>
         <maven.plugin.annotations.version>3.15.2</maven.plugin.annotations.version>
         <maven.plugin.plugin.version>3.15.2</maven.plugin.plugin.version>
