@@ -84,6 +84,38 @@
 
     <build>
         <plugins>
+            <!-- Deploy-time guard: gpg.skip defaults to true so plain `mvn verify` never needs a key
+                 (see the property's own comment above), but that same default would let a bare
+                 `mvn deploy` upload an UNSIGNED bundle to Central if someone forgets -Dgpg.skip=false.
+                 Bound to the deploy phase specifically (not verify) so it only fires on a real deploy
+                 attempt, and declared first among the plugins so it runs before central-publishing's
+                 own deploy-phase publish goal - validated empirically on a disposable branch that the
+                 enforcer failure happens before any upload is attempted. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>require-signing-on-deploy</id>
+                        <phase>deploy</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireProperty>
+                                    <property>gpg.skip</property>
+                                    <regex>false</regex>
+                                    <regexMessage>Real Maven Central deploy requires signing - rerun with -Dgpg.skip=false. gpg.skip=true is only for local/test verify runs.</regexMessage>
+                                </requireProperty>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-plugin-plugin</artifactId>
@@ -114,6 +146,7 @@
                 <configuration>
                     <publishingServerId>central</publishingServerId>
                     <autoPublish>true</autoPublish>
+                    <waitUntil>published</waitUntil>
                 </configuration>
             </plugin>
 
