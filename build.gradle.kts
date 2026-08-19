@@ -152,11 +152,20 @@ mavenPublishing {
 // neither with a signing key present nor needing one: mavenLocal resolution never checks .asc
 // files, only a real Central publish does. Confirmed as a real CI failure (No configured
 // signatory), not assumed. setRequired with a lazy closure is the documented Gradle signing-plugin
-// idiom for this - required only when the real publish task is actually in the graph, so
+// idiom for this - required only when a real publish task is actually in the graph, so
 // publishToMavenLocal silently skips signing instead of failing when no key is configured.
+//
+// Checks both publishAndReleaseToMavenCentral AND publishToMavenCentral - vanniktech exposes both
+// as real, independent publish-to-Central tasks (confirmed via `./gradlew tasks --all`, not
+// assumed): the first is the auto-release wrapper release.yml actually calls, but the second
+// (`publishToMavenCentral`) also uploads for real on its own, without the wrapper - CodeRabbit
+// caught that the original predicate only covered the first, leaving the second able to publish
+// unsigned.
 signing {
     setRequired({
-        gradle.taskGraph.allTasks.any { it.name == "publishAndReleaseToMavenCentral" }
+        gradle.taskGraph.allTasks.any {
+            it.name == "publishAndReleaseToMavenCentral" || it.name == "publishToMavenCentral"
+        }
     })
 }
 
