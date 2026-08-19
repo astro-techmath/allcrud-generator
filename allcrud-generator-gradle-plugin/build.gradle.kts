@@ -88,10 +88,14 @@ mavenPublishing {
 
 // See build.gradle.kts (root) for the full rationale - same fix, same reason: signAllPublications()
 // makes publishToMavenLocal require a signatory too, which fails in CI where no key is present and
-// none is needed for local-only resolution.
+// none is needed for local-only resolution. Checks both real Central publish tasks (confirmed via
+// `./gradlew tasks --all`) - publishToMavenCentral publishes for real on its own too, not just its
+// publishAndReleaseToMavenCentral wrapper.
 signing {
     setRequired({
-        gradle.taskGraph.allTasks.any { it.name == "publishAndReleaseToMavenCentral" }
+        gradle.taskGraph.allTasks.any {
+            it.name == "publishAndReleaseToMavenCentral" || it.name == "publishToMavenCentral"
+        }
     })
 }
 
