@@ -8,10 +8,11 @@ import javax.xml.parsers.DocumentBuilderFactory
 plugins {
     java
     application
-    `maven-publish`
     jacoco
+    signing
     id("io.spring.dependency-management") version "1.1.7"
     id("org.sonarqube") version "7.4.0.8496"
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
 group = "io.github.astro-techmath"
@@ -111,13 +112,61 @@ tasks.named("sonar") {
     dependsOn(":allcrud-generator-gradle-plugin:jacocoTestReport")
 }
 
-// See docs/notes/build.gradle.kts.md#minimal-publishing-setup--only-for-publishtomavenlocal-not-real-central-publishing
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
+mavenPublishing {
+    coordinates("io.github.astro-techmath", "allcrud-generator", version.toString())
+
+    pom {
+        name.set("Allcrud Generator")
+        description.set("Contract-first code generator core API for Allcrud - reads an OpenAPI spec plus an allcrud-generator.yml config file and generates the Controller/Service/Repository/Converter/POJO stack for each resource.")
+        url.set("https://github.com/astro-techmath/allcrud-generator")
+
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
+            }
+        }
+
+        developers {
+            developer {
+                id.set("mathmferreira")
+                name.set("Matheus de Almeida Maia Ferreira")
+                email.set("mathmferreira@gmail.com")
+            }
+        }
+
+        scm {
+            connection.set("scm:git:git://github.com/astro-techmath/allcrud-generator.git")
+            developerConnection.set("scm:git:ssh://github.com/astro-techmath/allcrud-generator.git")
+            url.set("https://github.com/astro-techmath/allcrud-generator")
         }
     }
+
+    publishToMavenCentral()
+    signAllPublications()
+}
+
+// signAllPublications() wires signing into every publish task unconditionally, including
+// publishToMavenLocal - which CI's own "Publish root artifact to Maven local" step (needed so the
+// Maven module can resolve this project as a dependency) and release.yml's test gate both call,
+// neither with a signing key present nor needing one: mavenLocal resolution never checks .asc
+// files, only a real Central publish does. Confirmed as a real CI failure (No configured
+// signatory), not assumed. setRequired with a lazy closure is the documented Gradle signing-plugin
+// idiom for this - required only when a real publish task is actually in the graph, so
+// publishToMavenLocal silently skips signing instead of failing when no key is configured.
+//
+// Checks both publishAndReleaseToMavenCentral AND publishToMavenCentral - vanniktech exposes both
+// as real, independent publish-to-Central tasks (confirmed via `./gradlew tasks --all`, not
+// assumed): the first is the auto-release wrapper release.yml actually calls, but the second
+// (`publishToMavenCentral`) also uploads for real on its own, without the wrapper - CodeRabbit
+// caught that the original predicate only covered the first, leaving the second able to publish
+// unsigned.
+signing {
+    setRequired({
+        gradle.taskGraph.allTasks.any {
+            it.name == "publishAndReleaseToMavenCentral" || it.name == "publishToMavenCentral"
+        }
+    })
 }
 
 // Job 2: manual/on-demand check for a newer core version on Maven Central.
