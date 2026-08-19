@@ -1,0 +1,123 @@
+name: TEST - validate round 2 findings (disposable, delete before merge)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-job-no-key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - run: chmod +x gradlew
+
+      - name: gradlew build + publishToMavenLocal (mirrors verify job)
+        run: |
+          ./gradlew build
+          ./gradlew publishToMavenLocal
+
+      - name: mvn verify with NO key present (mirrors verify job)
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml verify
+
+      - name: Confirm no real secret env vars leaked into this job
+        run: |
+          if [ -n "$SIGNING_KEY_CHECK" ]; then echo "LEAK"; exit 1; fi
+          echo "OK: no signing material in this job's environment"
+        env:
+          SIGNING_KEY_CHECK: ${{ secrets.NONEXISTENT_SECRET_FOR_TEST }}
+
+  enforcer-blocks-unsigned-deploy:
+    runs-on: ubuntu-latest
+    needs: verify-job-no-key
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - run: chmod +x gradlew
+
+      - run: ./gradlew publishToMavenLocal
+
+      - name: mvn deploy WITHOUT -Dgpg.skip=false must fail at enforcer, before any sign/publish
+        run: |
+          set +e
+          mvn -f allcrud-generator-maven-plugin/pom.xml deploy -DskipPublishing=true 2>&1 | tee /tmp/deploy.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit status: $status"
+          if [ "$status" -eq 0 ]; then
+            echo "FAIL: deploy should have been blocked by the enforcer guard"
+            exit 1
+          fi
+          if ! grep -q "require-signing-on-deploy" /tmp/deploy.log; then
+            echo "FAIL: enforcer rule did not run/fail as expected"
+            exit 1
+          fi
+          if grep -qE "gpg:sign|central-publishing.*publish" /tmp/deploy.log; then
+            echo "FAIL: sign or publish goal ran despite enforcer failure - guard did not block in time"
+            exit 1
+          fi
+          echo "OK: enforcer blocked the deploy before any sign/publish goal ran"
+
+  enforcer-allows-signed-deploy:
+    runs-on: ubuntu-latest
+    needs: verify-job-no-key
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate a disposable GPG key (never the real one)
+        run: |
+          cat > /tmp/gpg-gen.batch <<EOF
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 2048
+          Name-Real: Disposable Test Key
+          Name-Email: disposable-test@example.invalid
+          Expire-Date: 1d
+          %commit
+          EOF
+          gpg --batch --gen-key /tmp/gpg-gen.batch
+          gpg --list-secret-keys
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - run: chmod +x gradlew
+      - run: ./gradlew publishToMavenLocal
+
+      - name: mvn deploy WITH -Dgpg.skip=false + disposable key, skipPublishing=true (no real network upload)
+        run: |
+          mvn -f allcrud-generator-maven-plugin/pom.xml deploy -Dgpg.skip=false -DskipPublishing=true 2>&1 | tee /tmp/deploy2.log
+          echo "--- checking .asc signatures were produced ---"
+          find allcrud-generator-maven-plugin/target -name "*.asc" -print
+          if [ -z "$(find allcrud-generator-maven-plugin/target -name '*.asc')" ]; then
+            echo "FAIL: no .asc signature files produced - signing did not run"
+            exit 1
+          fi
+          if ! grep -q "BUILD SUCCESS" /tmp/deploy2.log; then
+            echo "FAIL: build did not succeed with real signing enabled"
+            exit 1
+          fi
+          echo "OK: enforcer allowed the deploy through, signing ran for real, waitUntil config parsed without error (no IllegalArgumentException), skipPublishing prevented any real network upload"
