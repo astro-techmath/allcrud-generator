@@ -43,9 +43,9 @@ sonar {
     }
 }
 
-val springBootVersion = "4.1.0"
+val springBootVersion = "4.1.1"
 val commonsLang3Version = "3.20.0"
-val jacksonBomVersion = "2.22.1"
+val jacksonBomVersion = "2.22.2"
 
 dependencyManagement {
     imports {
@@ -65,7 +65,7 @@ repositories {
     mavenCentral()
 }
 
-val openapiGeneratorVersion = "7.24.0"
+val openapiGeneratorVersion = "7.25.0"
 val junitVersion = "6.1.3"
 val snakeYamlVersion = "2.6"
 
