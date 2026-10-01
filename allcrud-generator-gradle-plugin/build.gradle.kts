@@ -20,7 +20,7 @@ jacoco {
 val junitVersion = "6.1.3"
 
 // See docs/notes/allcrud-generator-gradle-plugin-build.gradle.kts.md#springbootversion-bom-re-imported--doesnt-propagate-through-project-reference
-val springBootVersion = "4.1.0"
+val springBootVersion = "4.1.1"
 
 dependencyManagement {
     imports {
