@@ -1,0 +1,31 @@
+name: Feature Request
+description: Propose an idea for allcrud-generator
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        See [Proposing a Feature](../../blob/main/CONTRIBUTING.md#proposing-a-feature)
+        in CONTRIBUTING.md for how this fits into the contribution process.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that isn't well supported today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see, as concretely as you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Any other approaches you thought about.

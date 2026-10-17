@@ -16,6 +16,12 @@ reviews:
   changed_files_summary: true
   collapse_walkthrough: false
   suggested_labels: true
+  auto_apply_labels: true
+  labeling_instructions:
+    - label: "bug"
+      instructions: "Apply when the PR fixes a defect or incorrect behavior."
+    - label: "enhancement"
+      instructions: "Apply when the PR adds new functionality or improves existing behavior."
   suggested_reviewers: true
   in_progress_fortune: false
   request_changes_workflow: true

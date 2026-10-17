@@ -50,6 +50,14 @@ Before applying the plugin, your consumer project needs:
 
   Skipping either of these is a real, easy mistake to make - the generator has no way to detect it at generation time, and the failure only shows up later as a compile error (`cannot find symbol: class CrudController`) or a missing test base class.
 
+- **`io.swagger.core.v3:swagger-annotations`, declared by you.** The generated POJO unconditionally carries `@Schema` (`io.swagger.v3.oas.annotations.media.Schema`) - without this on the compile classpath, the generated POJO fails to compile:
+
+  ```kotlin
+  dependencies {
+      implementation("io.swagger.core.v3:swagger-annotations:2.2.52")
+  }
+  ```
+
 - **Docker, if you generate `integrationTest`.** The generated `*ControllerIT` classes extend `CrudControllerIntegrationTests`, which spins up a real PostgreSQL container via Testcontainers. If Docker isn't running when those tests execute, the build fails with a Testcontainers connection error that gives no hint the actual problem is "Docker isn't running." `unitTest` has no such requirement (it mocks the repository).
 
 ### Maven equivalent
@@ -66,6 +74,15 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
         <groupId>io.github.astro-techmath</groupId>
         <artifactId>allcrud</artifactId>
         <version>&lt;version&gt;</version>
+    </dependency>
+
+    <!-- The generated POJO unconditionally carries @Schema
+         (io.swagger.v3.oas.annotations.media.Schema) - without this on the compile
+         classpath, the generated POJO fails to compile. -->
+    <dependency>
+        <groupId>io.swagger.core.v3</groupId>
+        <artifactId>swagger-annotations</artifactId>
+        <version>2.2.52</version>
     </dependency>
 
     <!-- Only needed if you generate unitTest -->
