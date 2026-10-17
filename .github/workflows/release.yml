@@ -80,9 +80,8 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     environment: "Maven Central"
-    # waitUntil=validated (Maven) / publishToMavenCentral without automaticRelease (Gradle): CI
-    # stops after Central validates the deployments; Publish in the Portal is manual. Headroom for
-    # build/sign plus the plugin's validation wait (waitMaxTime default 1800s).
+    # Maven waitUntil=validated can block up to waitMaxTime (default 1800s). Gradle
+    # publishToMavenCentral (no automaticRelease) returns after upload; Portal checks VALIDATED.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -110,10 +109,10 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x gradlew
 
-      # publishToMavenCentral (vanniktech 0.37.0, no automaticRelease) uploads and validates without
-      # releasing - Publish in the Central Portal stays manual, so a partial CI failure cannot leave
-      # live artifacts. The Maven module below still resolves the root artifact via mavenLocal(),
-      # which publishToMavenCentral never populates, so publishToMavenLocal has to run first.
+      # publishToMavenCentral (vanniktech 0.37.0, no automaticRelease) uploads only - it does not
+      # wait for Central VALIDATED. Confirm root + gradle-plugin in the Portal before Publish.
+      # Maven module below still needs the root artifact in mavenLocal(), so publishToMavenLocal
+      # runs first.
       - name: Publish Gradle artifacts (root + gradle-plugin) to Maven Central
         env:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
@@ -124,10 +123,9 @@ jobs:
           ./gradlew publishToMavenLocal
           ./gradlew publishToMavenCentral --no-configuration-cache
 
-      # deploy re-runs test/verify/sign as part of Maven's own lifecycle. autoPublish=false +
-      # waitUntil=validated leave the deployment validated-but-unpublished until someone clicks
-      # Publish in the Portal (same manual gate as Gradle above). The enforcer guard bound to the
-      # deploy phase (see pom.xml) fails fast if gpg.skip isn't explicitly flipped to false here.
+      # autoPublish=false + waitUntil=validated: this step blocks until Central VALIDATED, then
+      # leaves Publish to the Portal (same manual click as the two Gradle deployments). Enforcer
+      # on deploy (pom.xml) fails fast unless -Dgpg.skip=false.
       - name: Publish Maven plugin to Maven Central
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}

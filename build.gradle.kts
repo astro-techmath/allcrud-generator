@@ -157,7 +157,7 @@ mavenPublishing {
 //
 // Checks both publishAndReleaseToMavenCentral AND publishToMavenCentral - vanniktech exposes both
 // as real, independent publish-to-Central tasks (confirmed via `./gradlew tasks --all`, not
-// assumed). release.yml calls publishToMavenCentral (upload+validate, manual Portal publish);
+// assumed). release.yml calls publishToMavenCentral (upload only; Portal confirms VALIDATED);
 // publishAndReleaseToMavenCentral remains covered so an accidental local/CI auto-release run
 // still requires a signatory.
 signing {

@@ -134,12 +134,14 @@ responsibility.
 
 In short: a `release/<version>` branch is cut from `next` (normal release)
 or `main` (urgent patch), stabilized via its own PR into `main`, and once
-merged, a GitHub Release (tag `v<version>`) triggers CI to upload and
-validate the three artifacts on the Central Portal. Nothing is public until
-you open [Deployments](https://central.sonatype.com/publishing/deployments)
-and click **Publish** on each validated deployment (or drop them if anything
-looks wrong). Releases are marked **Pre-release** while the project is still
-in the `0.x` line.
+merged, a GitHub Release (tag `v<version>`) triggers CI to upload the three
+artifacts. Maven deploy waits until Central marks that deployment
+`VALIDATED`; the two Gradle deployments (root and gradle-plugin) only show
+validation status in the Portal. Confirm all three are `VALIDATED`, then
+open [Deployments](https://central.sonatype.com/publishing/deployments) and
+click **Publish** (or drop them if anything looks wrong). Nothing is public
+before that click. Releases are marked **Pre-release** while the project is
+still in the `0.x` line.
 
 ## Local Development
 
