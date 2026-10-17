@@ -46,7 +46,12 @@ jobs:
       # production SIGNING_KEY. maven-gpg-plugin reads MAVEN_GPG_PASSPHRASE in batch mode.
       - name: Generate disposable GPG key for signing verification
         run: |
-          GNUPGHOME="$(mktemp -d)"
+          # export is required: an unexported GNUPGHOME= assignment is invisible to the gpg child
+          # process, so the key would land in ~/.gnupg while GITHUB_ENV points the next step at an
+          # empty mktemp dir (confirmed on the disposable validation runner).
+          export GNUPGHOME="${RUNNER_TEMP}/allcrud-disposable-gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           PASSPHRASE="$(openssl rand -hex 24)"
           echo "MAVEN_GPG_PASSPHRASE=$PASSPHRASE" >> "$GITHUB_ENV"
