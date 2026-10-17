@@ -72,7 +72,7 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
-    environment: maven-central
+    environment: "Maven Central"
     # waitUntil=validated (Maven) / publishToMavenCentral without automaticRelease (Gradle): CI
     # stops after Central validates the deployments; Publish in the Portal is manual. Headroom for
     # build/sign plus the plugin's validation wait (waitMaxTime default 1800s).
