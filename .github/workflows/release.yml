@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# Serialize release runs so two published events cannot upload in parallel with
+# production credentials. cancel-in-progress: false keeps an in-flight publish intact.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   # Test gate for BOTH mechanisms. No production SIGNING_KEY / MAVEN_CENTRAL_* secrets exist in this
   # job at all - CodeRabbit's finding: the original single-job workflow loaded the real key into
@@ -61,8 +67,9 @@ jobs:
             rsa3072 default never
           gpg --list-secret-keys --keyid-format LONG
 
+      # clean so a stale tracked target/ (or leftover from an earlier step) cannot skew the gate.
       - name: Build, test, and sign Maven plugin with disposable key
-        run: mvn -f allcrud-generator-maven-plugin/pom.xml verify -Dgpg.skip=false
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml clean verify -Dgpg.skip=false
 
   # Only this job ever sees the real SIGNING_KEY / MAVEN_CENTRAL_* secrets, and only after verify
   # has passed (needs:). Those secrets live in the maven-central Environment (not repository-wide).
@@ -88,11 +95,12 @@ jobs:
       # gpg-passphrase names remain only as deprecated aliases. gpg-private-key imports the same
       # SIGNING_KEY secret already used on the Gradle side into an isolated keyring automatically -
       # maven-gpg-plugin has no in-memory-key mode like vanniktech, it needs a real keyring on disk.
+      # No cache here: publish handles production secrets; a poisoned Gradle cache from an earlier
+      # run must not be restored into this job (verify keeps cache: gradle - no secrets there).
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
           server-id: central
           server-username-env-var: MAVEN_CENTRAL_USERNAME
           server-password-env-var: MAVEN_CENTRAL_PASSWORD
@@ -125,4 +133,4 @@ jobs:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY_PASSPHRASE: ${{ secrets.SIGNING_KEY_PASSPHRASE }}
-        run: mvn -f allcrud-generator-maven-plugin/pom.xml deploy -Dgpg.skip=false
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml clean deploy -Dgpg.skip=false
