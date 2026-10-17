@@ -71,9 +71,10 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
-    # waitUntil=published polls Central for up to waitMaxTime (plugin default 1800s / 30min);
-    # leave headroom for Gradle+Maven build/sign around that wait.
-    timeout-minutes: 60
+    # waitUntil=validated (Maven) / publishToMavenCentral without automaticRelease (Gradle): CI
+    # stops after Central validates the deployments; Publish in the Portal is manual. Headroom for
+    # build/sign plus the plugin's validation wait (waitMaxTime default 1800s).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,10 +100,10 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x gradlew
 
-      # publishAndReleaseToMavenCentral depends on the project's own build/test tasks via Gradle's
-      # task graph, but the Maven module below still resolves the root artifact via mavenLocal() -
-      # that never gets populated by publishAndReleaseToMavenCentral itself, so publishToMavenLocal
-      # has to run first, same reason as in the verify job.
+      # publishToMavenCentral (vanniktech 0.37.0, no automaticRelease) uploads and validates without
+      # releasing - Publish in the Central Portal stays manual, so a partial CI failure cannot leave
+      # live artifacts. The Maven module below still resolves the root artifact via mavenLocal(),
+      # which publishToMavenCentral never populates, so publishToMavenLocal has to run first.
       - name: Publish Gradle artifacts (root + gradle-plugin) to Maven Central
         env:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
@@ -111,13 +112,11 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
         run: |
           ./gradlew publishToMavenLocal
-          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
+          ./gradlew publishToMavenCentral --no-configuration-cache
 
-      # deploy re-runs test/verify/sign as part of Maven's own lifecycle (validate -> ... -> verify ->
-      # install -> deploy always executes prior phases first), so this step alone is self-contained
-      # proof the exact bits being uploaded were freshly tested and signed. autoPublish=true in the
-      # plugin's own pom.xml config releases automatically once Central's validation passes, matching
-      # publishAndReleaseToMavenCentral's behavior on the Gradle side. The enforcer guard bound to the
+      # deploy re-runs test/verify/sign as part of Maven's own lifecycle. autoPublish=false +
+      # waitUntil=validated leave the deployment validated-but-unpublished until someone clicks
+      # Publish in the Portal (same manual gate as Gradle above). The enforcer guard bound to the
       # deploy phase (see pom.xml) fails fast if gpg.skip isn't explicitly flipped to false here.
       - name: Publish Maven plugin to Maven Central
         env:

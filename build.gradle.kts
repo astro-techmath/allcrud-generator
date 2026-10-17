@@ -157,10 +157,9 @@ mavenPublishing {
 //
 // Checks both publishAndReleaseToMavenCentral AND publishToMavenCentral - vanniktech exposes both
 // as real, independent publish-to-Central tasks (confirmed via `./gradlew tasks --all`, not
-// assumed): the first is the auto-release wrapper release.yml actually calls, but the second
-// (`publishToMavenCentral`) also uploads for real on its own, without the wrapper - CodeRabbit
-// caught that the original predicate only covered the first, leaving the second able to publish
-// unsigned.
+// assumed). release.yml calls publishToMavenCentral (upload+validate, manual Portal publish);
+// publishAndReleaseToMavenCentral remains covered so an accidental local/CI auto-release run
+// still requires a signatory.
 signing {
     setRequired({
         gradle.taskGraph.allTasks.any {

@@ -134,9 +134,12 @@ responsibility.
 
 In short: a `release/<version>` branch is cut from `next` (normal release)
 or `main` (urgent patch), stabilized via its own PR into `main`, and once
-merged, published by creating a GitHub Release (tag `v<version>`), which
-triggers the test suite and the Maven Central publish pipeline. Releases
-are marked **Pre-release** while the project is still in the `0.x` line.
+merged, a GitHub Release (tag `v<version>`) triggers CI to upload and
+validate the three artifacts on the Central Portal. Nothing is public until
+you open [Deployments](https://central.sonatype.com/publishing/deployments)
+and click **Publish** on each validated deployment (or drop them if anything
+looks wrong). Releases are marked **Pre-release** while the project is still
+in the `0.x` line.
 
 ## Local Development
 
