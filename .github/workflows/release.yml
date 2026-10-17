@@ -14,26 +14,26 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # server-username/server-password are the NAMES of the env vars settings.xml should read at
-      # deploy time (not the values themselves) - confirmed against setup-java's own action.yml, not
-      # the generic docs (which conflated this action's v4 with newer major versions using different
-      # input names). gpg-private-key imports the same SIGNING_KEY secret already used on the Gradle
-      # side into an isolated keyring automatically - maven-gpg-plugin has no in-memory-key mode like
-      # vanniktech, it needs a real keyring on disk, which is exactly what this sets up.
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+      # server-*-env-var / gpg-passphrase-env-var are the NAMES of the env vars settings.xml / gpg
+      # should read at deploy time (not the values themselves). Confirmed against setup-java v6.1.0's
+      # real action.yml: those are the primary input names; the old server-username / server-password /
+      # gpg-passphrase names remain only as deprecated aliases. gpg-private-key imports the same
+      # SIGNING_KEY secret already used on the Gradle side into an isolated keyring automatically -
+      # maven-gpg-plugin has no in-memory-key mode like vanniktech, it needs a real keyring on disk.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
           server-id: central
-          server-username: MAVEN_CENTRAL_USERNAME
-          server-password: MAVEN_CENTRAL_PASSWORD
+          server-username-env-var: MAVEN_CENTRAL_USERNAME
+          server-password-env-var: MAVEN_CENTRAL_PASSWORD
           gpg-private-key: ${{ secrets.SIGNING_KEY }}
-          gpg-passphrase: SIGNING_KEY_PASSPHRASE
+          gpg-passphrase-env-var: SIGNING_KEY_PASSPHRASE
 
       - name: Ensure gradlew is executable
         run: chmod +x gradlew
@@ -46,8 +46,8 @@ jobs:
       # fails to resolve its own dependency on a clean runner (caught by CodeRabbit, confirmed real:
       # this is the same gap a locally-empty-but-not-actually-clean .m2 masked during earlier manual
       # testing this session). Split into 2 steps so the Maven step can set SIGNING_KEY_PASSPHRASE -
-      # gpg-passphrase above only names that env var, it doesn't provide the value, and the sign goal
-      # bound to the verify phase needs it to unlock the imported key.
+      # gpg-passphrase-env-var above only names that env var, it doesn't provide the value, and the
+      # sign goal bound to the verify phase needs it to unlock the imported key.
       - name: Build and test Gradle projects - publish gate
         run: |
           ./gradlew build
