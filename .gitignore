@@ -40,3 +40,8 @@ out/
 .cursor/
 .claude/
 .aiassistant/
+
+### Maven ###
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
