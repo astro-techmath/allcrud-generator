@@ -66,6 +66,9 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    # waitUntil=published polls Central for up to waitMaxTime (plugin default 1800s / 30min);
+    # leave headroom for Gradle+Maven build/sign around that wait.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

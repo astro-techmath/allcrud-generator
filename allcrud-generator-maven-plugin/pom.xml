@@ -145,6 +145,11 @@
                 <configuration>
                     <publishingServerId>central</publishingServerId>
                     <autoPublish>true</autoPublish>
+                    <!-- Default is validated: deploy can succeed before Central finishes publishing.
+                         published (requires autoPublish) blocks until the artifact is live, matching
+                         publishAndReleaseToMavenCentral on the Gradle side. Confirmed for plugin
+                         0.11.0 against central.sonatype.org/publish/publish-portal-maven/. -->
+                    <waitUntil>published</waitUntil>
                 </configuration>
             </plugin>
 
