@@ -47,10 +47,10 @@
              back with -Dgpg.skip=false only in release.yml's real `mvn deploy` step. Confirmed as a
              real CI failure (gpg: no default secret key), not assumed. -->
         <gpg.skip>true</gpg.skip>
-        <maven.plugin.api.version>3.9.16</maven.plugin.api.version>
-        <maven.plugin.annotations.version>3.15.2</maven.plugin.annotations.version>
-        <maven.plugin.plugin.version>3.15.2</maven.plugin.plugin.version>
-        <maven.core.version>3.9.16</maven.core.version>
+        <maven.plugin.api.version>3.10.0</maven.plugin.api.version>
+        <maven.plugin.annotations.version>3.16.0</maven.plugin.annotations.version>
+        <maven.plugin.plugin.version>3.16.0</maven.plugin.plugin.version>
+        <maven.core.version>3.10.0</maven.core.version>
     </properties>
 
     <!-- See docs/notes/allcrud-generator-maven-plugin-pom.xml.md#separate-maven-built-module-maven-plugin-plugin-has-no-gradle-native-equivalent -->
@@ -141,7 +141,7 @@
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.11.0</version>
+                <version>0.12.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>
