@@ -65,12 +65,14 @@ jobs:
         run: mvn -f allcrud-generator-maven-plugin/pom.xml verify -Dgpg.skip=false
 
   # Only this job ever sees the real SIGNING_KEY / MAVEN_CENTRAL_* secrets, and only after verify
-  # has passed (needs:). Rebuilds from scratch: Actions jobs run on separate runners with no shared
-  # filesystem, and Maven's deploy lifecycle re-runs verify anyway, so carrying build artifacts
-  # between jobs would not remove meaningful work.
+  # has passed (needs:). Those secrets live in the maven-central Environment (not repository-wide).
+  # Rebuilds from scratch: Actions jobs run on separate runners with no shared filesystem, and
+  # Maven's deploy lifecycle re-runs verify anyway, so carrying build artifacts between jobs would
+  # not remove meaningful work.
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    environment: maven-central
     # waitUntil=validated (Maven) / publishToMavenCentral without automaticRelease (Gradle): CI
     # stops after Central validates the deployments; Publish in the Portal is manual. Headroom for
     # build/sign plus the plugin's validation wait (waitMaxTime default 1800s).
