@@ -30,8 +30,8 @@ spring-boot-dependencies imports are unchanged.
 
 ## Consequences
 
-- Gradle and Maven consumers resolve Jackson 2.22.3 (annotations 2.22) or newer without extra
-  configuration, and Maven raises no duplicate-declaration warning.
+- Gradle consumers and Maven consumers of the Maven plugin resolve Jackson 2.22.3 (annotations
+  2.22) or newer without extra configuration, and Maven raises no duplicate-declaration warning.
 - The floor reaches Gradle consumers through the Gradle module metadata and Maven consumers of the
   Maven plugin through its direct dependencies. A consumer that reads only the Gradle plugin's POM
   does not get the floor, because Maven does not apply a dependency's dependencyManagement
