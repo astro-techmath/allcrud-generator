@@ -11,27 +11,49 @@ import org.apache.maven.project.MavenProject;
 
 import java.io.File;
 
-// Pure Maven-lifecycle glue over AllcrudGenerator.generate(GenerationRequest) - no generation or
-// config-parsing logic here, that's all AllcrudGeneratorYamlConfig.
-// See docs/notes/AllcrudGenerateMojo.md#no-automatic-source-set-inference--maven-needs-explicit-registration
+/**
+ * Pure Maven-lifecycle glue over {@link AllcrudGenerator#generate}.
+ * No generation or config-parsing logic here - that lives in {@link AllcrudGeneratorYamlConfig}.
+ * See docs/notes/AllcrudGenerateMojo.md#no-automatic-source-set-inference--maven-needs-explicit-registration
+ */
 @Mojo(name = "generate", defaultPhase = LifecyclePhase.GENERATE_SOURCES)
 public class AllcrudGenerateMojo extends AbstractMojo {
 
+    /**
+     * Current Maven project; used to register generated source roots after generation.
+     */
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
+    /**
+     * OpenAPI specification file to generate from.
+     */
     @Parameter(property = "allcrud.specFile", required = true)
     private File specFile;
 
+    /**
+     * allcrud-generator.yml config file (defaults to {@code ${project.basedir}/allcrud-generator.yml}).
+     */
     @Parameter(property = "allcrud.configFile", defaultValue = "${project.basedir}/allcrud-generator.yml")
     private File configFile;
 
+    /**
+     * Directory for generated main sources (defaults to {@code ${project.basedir}/src/main/java}).
+     */
     @Parameter(property = "allcrud.outputDir", defaultValue = "${project.basedir}/src/main/java")
     private File outputDir;
 
+    /**
+     * Directory for generated test sources (defaults to {@code ${project.basedir}/src/test/java}).
+     */
     @Parameter(property = "allcrud.testOutputDir", defaultValue = "${project.basedir}/src/test/java")
     private File testOutputDir;
 
+    /**
+     * Runs Allcrud generation and registers the output directories as compile and test source roots.
+     *
+     * @throws MojoExecutionException if generation fails
+     */
     @Override
     public void execute() throws MojoExecutionException {
         AllcrudGeneratorYamlConfig config = AllcrudGeneratorYamlConfig.load(configFile.toPath());
