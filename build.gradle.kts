@@ -46,7 +46,8 @@ sonar {
 
 val springBootVersion = "4.1.1"
 val commonsLang3Version = "3.21.0"
-val jacksonBomVersion = "2.22.3"
+val jacksonBomVersion = project.property("jacksonVersion") as String
+val jacksonAnnotationsVersion = project.property("jacksonAnnotationsVersion") as String
 
 dependencyManagement {
     imports {
@@ -74,6 +75,18 @@ dependencies {
     implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
     // See docs/notes/build.gradle.kts.md#snakeyaml-declared-explicitly-despite-already-being-a-transitive-dependency
     implementation("org.yaml:snakeyaml:$snakeYamlVersion")
+    constraints {
+        listOf(
+            "com.fasterxml.jackson.core:jackson-core:$jacksonBomVersion",
+            "com.fasterxml.jackson.core:jackson-databind:$jacksonBomVersion",
+            "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jacksonBomVersion",
+            "com.fasterxml.jackson.core:jackson-annotations:$jacksonAnnotationsVersion",
+        ).forEach {
+            implementation(it) {
+                because("Published floor for GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24, GHSA-wv8q-qhhj-9h54, GHSA-gx83-3vf8-gh7j, GHSA-q4xh-88c3-wmh7, GHSA-wjgm-6hv5-3cvf (fixed in 2.22.3; annotations aligned with databind)")
+            }
+        }
+    }
     // See docs/notes/build.gradle.kts.md#allcrud-core-test-dependency-scope--testimplementation-avoids-leaking-spring-starters
     testImplementation("$allcrudCoreGroup:$allcrudCoreArtifact:$allcrudCoreVersion")
     // See docs/notes/build.gradle.kts.md#testfixtures-dependency--confirmed-via-javap-not-assumed
