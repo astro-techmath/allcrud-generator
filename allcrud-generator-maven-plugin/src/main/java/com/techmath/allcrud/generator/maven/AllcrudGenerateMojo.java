@@ -12,8 +12,8 @@ import org.apache.maven.project.MavenProject;
 import java.io.File;
 
 /**
- * Pure Maven-lifecycle glue over {@link AllcrudGenerator#generate}.
- * No generation or config-parsing logic here - that lives in {@link AllcrudGeneratorYamlConfig}.
+ * Pure Maven-lifecycle glue: generation in {@link AllcrudGenerator#generate},
+ * config loading in {@link AllcrudGeneratorYamlConfig}.
  * See docs/notes/AllcrudGenerateMojo.md#no-automatic-source-set-inference--maven-needs-explicit-registration
  */
 @Mojo(name = "generate", defaultPhase = LifecyclePhase.GENERATE_SOURCES)
