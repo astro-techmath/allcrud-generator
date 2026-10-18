@@ -37,7 +37,7 @@ reviews:
       - "dependabot[bot]"
     base_branches:
       - "main"
-      - "staging"
+      - "release/.*"
 
   slop_detection:
     enabled: true
