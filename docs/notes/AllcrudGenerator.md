@@ -72,7 +72,7 @@ dual-purpose — presence decides the boolean above, but
 models/apis to generate, e.g. `-Dmodels=Product,Order`) parses this SAME
 string as a CSV set. `"true"` would be parsed as "only generate a model/api
 literally named true", filtering out everything and silently producing zero
-files — hit this for real while verifying against 7.23.0's source, not a
+files — hit this for real while verifying against 7.26.0's source, not a
 hypothetical.
 
 ## AllcrudGenerator is not (yet) a production entrypoint
@@ -135,7 +135,7 @@ the 5 custom templates reference them (verified). This is why they're
 disabled via the `GlobalSettings` presence-vs-value mechanism documented
 above, instead of left to generate and discarded.
 
-## ClientOptInput#getConfig() is deprecated with no replacement (openapi-generator 7.23.0)
+## ClientOptInput#getConfig() is deprecated with no replacement (openapi-generator 7.26.0)
 
 `ClientOptInput#getConfig()` is deprecated with no replacement exposed yet:
 
