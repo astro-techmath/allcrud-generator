@@ -2,7 +2,7 @@
 
 allcrud-generator's custom templates (`src/main/resources/templates/`), consolidated from what
 used to be a near-identical header comment repeated at the top of each file. openapi-generator
-version referenced throughout: **7.23.0** (pinned in `build.gradle.kts` as `openapiGeneratorVersion`).
+version referenced throughout: **7.26.0** (pinned in `build.gradle.kts` as `openapiGeneratorVersion`).
 
 | Template | Overrides a stock openapi-generator template? | Notes |
 |---|---|---|

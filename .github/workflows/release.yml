@@ -1,0 +1,136 @@
+name: Release
+
+# release: published is the same trigger already validated in allcrud's real v0.2.1 publish. workflow_dispatch
+# stays available too (regenerate-verification-metadata.yml, ci.yml) for manual/exceptional runs unrelated to
+# this workflow - this one is release-triggered only, nothing here needs a manual escape hatch of its own.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+# Serialize release runs so two published events cannot upload in parallel with
+# production credentials. cancel-in-progress: false keeps an in-flight publish intact.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Test gate for BOTH mechanisms. No production SIGNING_KEY / MAVEN_CENTRAL_* secrets exist in this
+  # job at all - CodeRabbit's finding: the original single-job workflow loaded the real key into
+  # setup-java's keyring before the test gate, so a compromised step during "just testing" could
+  # exfiltrate production material. A disposable key generated in-job still exercises the real
+  # -Dgpg.skip=false signing path without ever touching the production keyring.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
+      # ./gradlew build already covers the root project and the gradle-plugin subproject together
+      # (confirmed empirically - a plain `build` at the root cascades to subprojects, no extra flags
+      # needed). The Maven module resolves the root artifact via mavenLocal(), which ./gradlew build
+      # alone never populates - publishToMavenLocal has to run first or mvn verify fails to resolve
+      # its own dependency on a clean runner.
+      - name: Build and test Gradle projects
+        run: |
+          ./gradlew build
+          ./gradlew publishToMavenLocal
+
+      # Disposable RSA key with a real passphrase, isolated in its own GNUPGHOME. Never the
+      # production SIGNING_KEY. maven-gpg-plugin reads MAVEN_GPG_PASSPHRASE in batch mode.
+      - name: Generate disposable GPG key for signing verification
+        run: |
+          # export is required: an unexported GNUPGHOME= assignment is invisible to the gpg child
+          # process, so the key would land in ~/.gnupg while GITHUB_ENV points the next step at an
+          # empty mktemp dir (confirmed on the disposable validation runner).
+          export GNUPGHOME="${RUNNER_TEMP}/allcrud-disposable-gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          PASSPHRASE="$(openssl rand -hex 24)"
+          # Generated in-job, so Actions does not mask it automatically.
+          echo "::add-mask::$PASSPHRASE"
+          echo "MAVEN_GPG_PASSPHRASE=$PASSPHRASE" >> "$GITHUB_ENV"
+          gpg --batch --pinentry-mode loopback --passphrase "$PASSPHRASE" \
+            --quick-generate-key \
+            "Allcrud CI Disposable Signer <ci-disposable@example.invalid>" \
+            rsa3072 default never
+          gpg --list-secret-keys --keyid-format LONG
+
+      # clean so a stale tracked target/ (or leftover from an earlier step) cannot skew the gate.
+      - name: Build, test, and sign Maven plugin with disposable key
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml clean verify -Dgpg.skip=false
+
+  # Only this job ever sees the real SIGNING_KEY / MAVEN_CENTRAL_* secrets, and only after verify
+  # has passed (needs:). Those secrets live in the maven-central Environment (not repository-wide).
+  # Rebuilds from scratch: Actions jobs run on separate runners with no shared filesystem, and
+  # Maven's deploy lifecycle re-runs verify anyway, so carrying build artifacts between jobs would
+  # not remove meaningful work.
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: "Maven Central"
+    # Maven waitUntil=validated can block up to waitMaxTime (default 1800s). Gradle
+    # publishToMavenCentral (no automaticRelease) returns after upload; Portal checks VALIDATED.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # server-*-env-var / gpg-passphrase-env-var are the NAMES of the env vars settings.xml / gpg
+      # should read at deploy time (not the values themselves). Confirmed against setup-java v6.1.0's
+      # real action.yml: those are the primary input names; the old server-username / server-password /
+      # gpg-passphrase names remain only as deprecated aliases. gpg-private-key imports the same
+      # SIGNING_KEY secret already used on the Gradle side into an isolated keyring automatically -
+      # maven-gpg-plugin has no in-memory-key mode like vanniktech, it needs a real keyring on disk.
+      # No cache here: publish handles production secrets; a poisoned Gradle cache from an earlier
+      # run must not be restored into this job (verify keeps cache: gradle - no secrets there).
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: central
+          server-username-env-var: MAVEN_CENTRAL_USERNAME
+          server-password-env-var: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.SIGNING_KEY }}
+          gpg-passphrase-env-var: SIGNING_KEY_PASSPHRASE
+
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
+      # publishToMavenCentral (vanniktech 0.37.0, no automaticRelease) uploads only - it does not
+      # wait for Central VALIDATED. Confirm root + gradle-plugin in the Portal before Publish.
+      # Maven module below still needs the root artifact in mavenLocal(), so publishToMavenLocal
+      # runs first.
+      - name: Publish Gradle artifacts (root + gradle-plugin) to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSPHRASE }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          ./gradlew publishToMavenLocal
+          ./gradlew publishToMavenCentral --no-configuration-cache
+
+      # autoPublish=false + waitUntil=validated: this step blocks until Central VALIDATED, then
+      # leaves Publish to the Portal (same manual click as the two Gradle deployments). Enforcer
+      # on deploy (pom.xml) fails fast unless -Dgpg.skip=false.
+      - name: Publish Maven plugin to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY_PASSPHRASE: ${{ secrets.SIGNING_KEY_PASSPHRASE }}
+        run: mvn -f allcrud-generator-maven-plugin/pom.xml clean deploy -Dgpg.skip=false
