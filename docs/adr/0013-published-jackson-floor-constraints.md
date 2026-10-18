@@ -33,9 +33,9 @@ spring-boot-dependencies imports are unchanged.
 - Gradle consumers and Maven consumers of the Maven plugin resolve Jackson 2.22.3 (annotations
   2.22) or newer without extra configuration, and Maven raises no duplicate-declaration warning.
 - The floor reaches Gradle consumers through the Gradle module metadata and Maven consumers of the
-  Maven plugin through its direct dependencies. A consumer that reads only the Gradle plugin's POM
-  does not get the floor, because Maven does not apply a dependency's dependencyManagement
-  transitively.
+  Maven plugin through the Maven plugin POM's own dependencyManagement, which applies because the
+  plugin is the resolution root. A consumer that reads only the Gradle plugin's POM does not get
+  the floor, because Maven does not apply a dependency's dependencyManagement transitively.
 - The Gradle plugin's POM no longer imports `spring-boot-dependencies`; its only dependency,
   `allcrud-generator`, carries an explicit version.
 - Raising the floor means changing the two properties per build, plus the verification metadata
