@@ -135,7 +135,7 @@ class AllcrudGeneratorPluginFunctionalTest {
                     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
                     implementation("org.springframework.boot:spring-boot-starter-validation")
                     // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#openapi-generators-swagger2annotationlibrary-emits-schema-annotations
-                    implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.28")
+                    implementation("io.swagger.core.v3:swagger-annotations:2.2.52")
                     // See docs/notes/AllcrudGeneratorPluginFunctionalTest.md#the-stock-spring-generator-also-emits-springdocconfigurationjava-by-default
                     implementation("io.swagger.core.v3:swagger-models-jakarta:2.2.28")
                 }

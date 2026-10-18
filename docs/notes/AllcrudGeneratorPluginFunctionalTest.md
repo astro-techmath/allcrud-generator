@@ -33,7 +33,7 @@ gap in allcrud or the plugin.
 
 This project's default annotation library emits `@Schema` annotations on
 generated models - a real consumer project needs
-`io.swagger.core.v3:swagger-annotations-jakarta` on its own compile
+`io.swagger.core.v3:swagger-annotations` on its own compile
 classpath for that to resolve, same reasoning as the Spring Boot starters
 above.
 
