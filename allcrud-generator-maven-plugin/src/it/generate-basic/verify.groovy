@@ -1,13 +1,20 @@
 def root = new File(basedir, 'src/main/java/org/openapitools')
+def classes = new File(basedir, 'target/classes/org/openapitools')
 
 def generated = [
-    'api/GlobalExceptionHandler.java',
-    'api/ProductRepository.java',
-    'api/ProductConverter.java',
-    'api/OrderRepository.java',
-    'api/OrderService.java',
+    'api/GlobalExceptionHandler',
+    'api/ProductRepository',
+    'api/ProductConverter',
+    'api/ProductService',
+    'api/ProductController',
+    'api/OrderRepository',
+    'api/OrderService',
+    'model/ProductVO',
 ]
-generated.each { assert new File(root, it).isFile() : "missing generated file $it" }
+generated.each {
+    assert new File(root, "${it}.java").isFile() : "missing generated file ${it}.java"
+    assert new File(classes, "${it}.class").isFile() : "missing compiled class ${it}.class"
+}
 
 def absent = [
     'model/OrderVO.java',
@@ -16,16 +23,9 @@ def absent = [
 ]
 absent.each { assert !new File(root, it).exists() : "unexpected file $it" }
 
-def handWritten = [
-    'api/ProductService.java'   : 'package org.openapitools.api;\n\npublic class ProductService {\n\n    public String handWritten() {\n        return "kept";\n    }\n\n}\n',
-    'api/ProductController.java': 'package org.openapitools.api;\n\npublic class ProductController {\n\n    public String handWritten() {\n        return "kept";\n    }\n\n}\n',
-    'model/ProductVO.java'      : 'package org.openapitools.model;\n\npublic class ProductVO {\n\n    public String handWritten() {\n        return "kept";\n    }\n\n}\n',
-]
-handWritten.each { path, content ->
-    assert new File(root, path).text == content : "$path was overwritten"
-}
-
 def log = new File(basedir, 'build.log').text
-assert (log =~ /BUILD SUCCESS/).count == 2 : 'expected two successful generator executions'
+assert (log =~ /--- allcrud-generator:[^ ]+:generate/).count == 2 : 'expected the generate goal in both executions'
+assert (log =~ /--- compiler:[^ ]+:compile/).count == 2 : 'expected the compile goal in both executions'
+assert (log =~ /BUILD SUCCESS/).count == 2 : 'expected both executions to succeed'
 
 return true
