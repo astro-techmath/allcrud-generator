@@ -25,7 +25,8 @@ live in two properties per build: `jacksonVersion` and `jacksonAnnotationsVersio
   `generatedPomCustomization` is disabled, so the published POM lists each Jackson entry once.
 - Maven plugin: a `<dependencyManagement>` section in `pom.xml`.
 
-No platform or BOM is published.
+This change publishes no new platform or BOM; the root POM's existing jackson-bom and
+spring-boot-dependencies imports are unchanged.
 
 ## Consequences
 
