@@ -51,6 +51,9 @@
         <maven.plugin.annotations.version>3.16.0</maven.plugin.annotations.version>
         <maven.plugin.plugin.version>3.16.0</maven.plugin.plugin.version>
         <maven.core.version>3.10.0</maven.core.version>
+        <!-- Latest stable on Maven Central / maven.apache.org/plugins (not the 4.x beta line). -->
+        <maven.source.plugin.version>3.4.0</maven.source.plugin.version>
+        <maven.javadoc.plugin.version>3.12.0</maven.javadoc.plugin.version>
     </properties>
 
     <!-- See docs/notes/allcrud-generator-maven-plugin-pom.xml.md#separate-maven-built-module-maven-plugin-plugin-has-no-gradle-native-equivalent -->
@@ -127,6 +130,35 @@
                         <id>default-descriptor</id>
                         <goals>
                             <goal>descriptor</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Central requires -sources.jar / -javadoc.jar. Attached at package so maven-gpg-plugin
+                 (verify phase) signs them together with the main jar and pom. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven.source.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven.javadoc.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
                         </goals>
                     </execution>
                 </executions>

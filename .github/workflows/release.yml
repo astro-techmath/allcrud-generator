@@ -60,6 +60,8 @@ jobs:
           chmod 700 "$GNUPGHOME"
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           PASSPHRASE="$(openssl rand -hex 24)"
+          # Generated in-job, so Actions does not mask it automatically.
+          echo "::add-mask::$PASSPHRASE"
           echo "MAVEN_GPG_PASSPHRASE=$PASSPHRASE" >> "$GITHUB_ENV"
           gpg --batch --pinentry-mode loopback --passphrase "$PASSPHRASE" \
             --quick-generate-key \
