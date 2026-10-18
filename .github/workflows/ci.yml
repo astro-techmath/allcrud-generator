@@ -68,7 +68,7 @@ jobs:
         if: failure()
         run: |
           if grep -q "Dependency verification failed" build-output.log; then
-            echo "::error title=Dependency verification outdated::A dependency version bump (likely Dependabot) has no matching entry in gradle/verification-metadata.xml. Fix: run './gradlew --write-verification-metadata sha256 build' locally on this branch, commit the updated gradle/verification-metadata.xml, and push to this same PR - or trigger the 'Regenerate Dependency Verification Metadata' workflow against this branch instead."
+            echo "::error title=Dependency verification outdated::A dependency change on this branch has no matching entry in gradle/verification-metadata.xml. Do not regenerate it locally (a warm local cache can hide missing or wrong artifacts). Fix: a maintainer runs the 'Regenerate Dependency Verification Metadata' workflow (regenerate-verification-metadata.yml, workflow_dispatch) against this PR's branch; it commits the updated file to the same PR for review."
           fi
 
       # allcrud-generator-maven-plugin (separate, independent Maven build - own pom.xml, not
