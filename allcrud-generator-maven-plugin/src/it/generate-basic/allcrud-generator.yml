@@ -1,0 +1,21 @@
+pojoNamingStyle: VO
+generation:
+  pojo:
+    package: org.openapitools.model
+    onRegenerate: preserve
+  repository:
+    package: org.openapitools.api
+  converter:
+    package: org.openapitools.api
+  service:
+    package: org.openapitools.api
+  controller:
+    package: org.openapitools.api
+resources:
+  Order:
+    pojo:
+      enabled: false
+    converter:
+      enabled: false
+    controller:
+      enabled: false

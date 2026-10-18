@@ -1,0 +1,245 @@
+openapi: 3.0.3
+info:
+  title: Product API
+  version: 1.0.0
+paths:
+  /products:
+    x-allcrud-resource: true
+    get:
+      operationId: findAllProducts
+      summary: List products (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Paged list of products. Pagination info comes back in HTTP
+            headers (CrudController#findAll/mountPageableHttpHeaders), NOT in the
+            response body - the body is a plain array.
+          headers:
+            currentPage:
+              schema: { type: integer }
+            currentElements:
+              schema: { type: integer }
+            totalElements:
+              schema: { type: integer, format: int64 }
+            totalPages:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      operationId: createProduct
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+  /products/{id}:
+    x-allcrud-resource: true
+    get:
+      operationId: findProductById
+      summary: Get product by id
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    put:
+      operationId: updateProduct
+      summary: Full update
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    patch:
+      operationId: partialUpdateProduct
+      summary: Partial update
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    delete:
+      operationId: deleteProduct
+      summary: Delete product
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: Deleted
+  /orders:
+    x-allcrud-resource: true
+    get:
+      operationId: findAllOrders
+      summary: List orders (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Paged list of orders. Pagination info comes back in HTTP
+            headers (CrudController#findAll/mountPageableHttpHeaders), NOT in the
+            response body - the body is a plain array.
+          headers:
+            currentPage:
+              schema: { type: integer }
+            currentElements:
+              schema: { type: integer }
+            totalElements:
+              schema: { type: integer, format: int64 }
+            totalPages:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+    post:
+      operationId: createOrder
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /orders/{id}:
+    x-allcrud-resource: true
+    get:
+      operationId: findOrderById
+      summary: Get order by id
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+    put:
+      operationId: updateOrder
+      summary: Full update
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+    patch:
+      operationId: partialUpdateOrder
+      summary: Partial update
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+    delete:
+      operationId: deleteOrder
+      summary: Delete order
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '204':
+          description: Deleted
+components:
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int32 }
+  schemas:
+    Product:
+      type: object
+      required: [name]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        name: { type: string }
+        price: { type: number, format: double }
+        description: { type: string }
+    Order:
+      type: object
+      required: [reference]
+      properties:
+        id: { type: integer, format: int32, readOnly: true }
+        reference: { type: string }
+        quantity: { type: integer, format: int32 }
