@@ -43,6 +43,10 @@ public final class AllcrudGenerator {
                     .setOutputDir(stagingDir.toString())
                     // See docs/notes/AllcrudGenerator.md#openapinullable-disabled--no-jackson-databind-nullable-dependency
                     .addAdditionalProperty("openApiNullable", false)
+                    // openapi-generator 7.25+ defaults these to false (7.23-equivalent output) but
+                    // WARN if unset. Pin false explicitly to keep that behavior without the noise.
+                    .addAdditionalProperty("generateJsonIncludeAnnotations", false)
+                    .addAdditionalProperty("generateJsonSetterNullsAnnotations", false)
                     .addAdditionalProperty("allcrudPojoNamingStyle", request.pojoNamingStyle().name())
                     // See docs/notes/AllcrudGenerator.md#allcrudbasepathprefixoverrides-set-at-codegen-time-not-in-relocate
                     .addAdditionalProperty("allcrudBasePathPrefix", request.basePathPrefix())
