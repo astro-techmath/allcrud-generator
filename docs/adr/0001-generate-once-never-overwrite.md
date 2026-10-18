@@ -4,20 +4,22 @@
 
 Generated files for the Repository, Converter, Service, Controller, and exceptionHandler layers
 land directly under the consumer's real source root (`src/main/java`, not `build/generated/...`),
+and the unitTest and integrationTest layers land under the test source root (`src/test/java`, see
+[ADR 0010](0010-test-source-root-separate.md)),
 because they're meant to be persisted and hand-edited after generation - this is the whole point
 of a scaffolding generator: fill in the boilerplate once, let the developer take over from there.
 
 If a second `generateAllcrud` run silently overwrote those files, any hand-written customization
-(custom `@ExceptionHandler` methods, business logic added to a Service, etc.) would be destroyed
-without warning the next time the generator runs - a scaffolding tool that can't be trusted not to
-clobber your work stops being useful.
+(custom `@ExceptionHandler` methods, business logic added to a Service, extra test cases, etc.)
+would be destroyed without warning the next time the generator runs - a scaffolding tool that
+can't be trusted not to clobber your work stops being useful.
 
 ## Decision
 
-Repository, Converter, Service, Controller, and the global exceptionHandler artifact **never
-overwrite an existing file once generated** - there's no configuration knob to change this for any
-of them, on purpose. If the file already exists at the target path, generation for that layer is a
-no-op for that resource.
+Repository, Converter, Service, Controller, unitTest, integrationTest, and the global
+exceptionHandler artifact **never overwrite an existing file once generated** - there's no
+configuration knob to change this for any of them, on purpose. If the file already exists at the
+target path, generation for that layer is a no-op for that resource.
 
 The POJO layer is the sole exception: it has its own `onRegenerate` setting
 (`generation.pojo.onRegenerate`, overridable per resource), defaulting to `PRESERVE` (same
@@ -28,10 +30,13 @@ generated code, never hand-edited).
 ## Consequences
 
 - Generated files are safe to hand-edit immediately after the first generation - a later
-  `generateAllcrud` run won't touch them again for those 5 layers.
+  `generateAllcrud` run won't touch them again for those 7 artifacts (Repository, Converter,
+  Service, Controller, unitTest, integrationTest, exceptionHandler).
 - Removing a resource from the OpenAPI spec does **not** remove its previously generated files -
   the generator only ever adds, it never deletes. Cleaning up after a removed resource is a manual
   step.
+- unitTest and integrationTest have no `onRegenerate` key; the yml parser accepts it only under
+  the pojo layer node.
 - Only POJO can be forced to regenerate (`onRegenerate: overwrite`), and only because it's the one
   layer expected to sometimes be treated as disposable, schema-derived code rather than a
   developer's own logic.

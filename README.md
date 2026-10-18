@@ -388,12 +388,16 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
 | Service | Per-resource | Always preserved once it exists |
 | Controller | Per-resource | Always preserved once it exists |
 | `exceptionHandler` (`GlobalExceptionHandler` `@ControllerAdvice` stub) | **Global** - one per project, not per-resource | Always preserved once it exists |
-| `unitTest` (`CrudServiceTests` subclass) | Per-resource | Always preserved once it exists |
-| `integrationTest` (`CrudControllerIntegrationTests` subclass) | Per-resource | Always preserved once it exists |
+| `unitTest` (`<Entity>ServiceTest`, a `CrudServiceTests` subclass) | Per-resource | Always preserved once it exists |
+| `integrationTest` (`<Entity>ControllerIT`, a `CrudControllerIntegrationTests` subclass) | Per-resource | Always preserved once it exists |
 
 Notes:
 
-- Only the POJO's overwrite behavior is configurable - everything else is scaffolding meant to carry hand-written logic (`@Query` methods, business rules, custom endpoints), so a blind overwrite would silently destroy it. "Preserve" for POJO is also the default: overwrite is strictly opt-in, never assumed.
+- Only the POJO's overwrite behavior is configurable - everything else (including
+  `unitTest`/`integrationTest`) is scaffolding meant to carry hand-written logic (`@Query` methods,
+  business rules, custom endpoints), so a blind overwrite would silently destroy it. "Preserve" for
+  POJO is also the default: overwrite is strictly opt-in, never assumed. See [ADR
+  0001](docs/adr/0001-generate-once-never-overwrite.md).
 - `unitTest`/`integrationTest` always land under your test source root (`src/test/java` by default), never under the production source root - this isn't configurable.
 - `exceptionHandler` is generated once, independent of the OpenAPI spec's content - it's the one artifact that isn't tied to a resource at all.
 
