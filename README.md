@@ -61,6 +61,8 @@ Before applying the plugin, your consumer project needs:
   }
   ```
 
+- **Jackson floor, applied for you.** The plugins publish a minimum of Jackson 2.22.3 (`jackson-annotations` 2.22) for `jackson-core`, `jackson-databind` and `jackson-dataformat-yaml`. Gradle builds that apply the Gradle plugin get it through its Gradle module metadata (`.module`), so a lower Jackson version you declare is raised to the floor. Builds that use the Maven plugin get it in the plugin's own classpath. A Maven build that only reads the Gradle plugin's POM (for example, depending on `allcrud-generator-gradle-plugin` as a regular dependency) does not get the floor and must manage Jackson itself. See [ADR 0013](docs/adr/0013-published-jackson-floor-constraints.md).
+
 - **`io.swagger.core.v3:swagger-annotations`, declared by you.** The generated POJO unconditionally carries `@Schema` (`io.swagger.v3.oas.annotations.media.Schema`) - without this on the compile classpath, the generated POJO fails to compile:
 
   ```kotlin
