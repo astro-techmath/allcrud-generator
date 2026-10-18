@@ -11,7 +11,7 @@ plugins {
     jacoco
     signing
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.sonarqube") version "7.4.0.8496"
+    id("org.sonarqube") version "7.5.0.8588"
     id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
@@ -44,9 +44,9 @@ sonar {
     }
 }
 
-val springBootVersion = "4.1.0"
-val commonsLang3Version = "3.20.0"
-val jacksonBomVersion = "2.22.1"
+val springBootVersion = "4.1.1"
+val commonsLang3Version = "3.21.0"
+val jacksonBomVersion = "2.22.3"
 
 dependencyManagement {
     imports {
@@ -66,9 +66,9 @@ repositories {
     mavenCentral()
 }
 
-val openapiGeneratorVersion = "7.24.0"
+val openapiGeneratorVersion = "7.26.0"
 val junitVersion = "6.1.3"
-val snakeYamlVersion = "2.6"
+val snakeYamlVersion = "2.7"
 
 dependencies {
     implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
