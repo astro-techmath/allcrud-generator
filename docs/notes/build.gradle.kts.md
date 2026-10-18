@@ -90,3 +90,16 @@ with no dependency on it otherwise.
 Just enough for allcrud-generator-gradle-plugin's `implementation(project(":"))`
 to resolve as a real coordinate via `publishToMavenLocal`. Not a statement
 about real (Central) publishing, which is a separate decision.
+
+## Jackson floor — published constraints, not the build-time BOM
+
+The `jackson-bom` import in `dependencyManagement` only fixes this build's own
+resolution; consumers of the published artifact never see it. The
+`constraints { }` block on `jackson-core`, `jackson-databind` and
+`jackson-dataformat-yaml` (version `jacksonVersion` in `gradle.properties`,
+also used for the BOM), plus `jackson-annotations`
+(`jacksonAnnotationsVersion`, 2.22, so databind 2.22.3 never runs with
+annotations 2.21), is what reaches users: Gradle publishes it as
+`dependencyConstraints` in the `.module` and as `<dependencyManagement>`
+entries in the POM. Confirmed by grepping the artifacts from
+`publishToMavenLocal`. See ADR 0013.
