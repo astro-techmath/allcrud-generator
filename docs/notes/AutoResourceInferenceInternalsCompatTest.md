@@ -4,7 +4,7 @@ Forensic findings about external tooling behavior (openapi-generator's `ModelUti
 
 ## Dangling requestBody $ref falls through to false without throwing — the null comes from getSchemaFromContent, not getReferencedRequestBody
 
-Confirmed by decompiling `openapi-generator-7.23.0.jar`'s
+Confirmed by decompiling `openapi-generator-7.26.0.jar`'s
 `ModelUtils` (bytecode, not assumed): `ModelUtils#getReferencedRequestBody`
 does NOT return null for an unresolvable `$ref` - it falls back to
 returning the original, unresolved `RequestBody` object itself (the `$ref`

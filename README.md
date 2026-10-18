@@ -18,12 +18,12 @@ Lives in its own repo/artifact so it never becomes a transitive dependency of pr
 ## ✨ Features
 
 - **Contract-first**: an OpenAPI spec is the single source of truth for what gets generated - not annotations sprinkled across hand-written classes.
-- **7 artifact types per run**: POJO, Repository, Converter, Service, Controller, a project-wide `exceptionHandler`, and optional `unitTest`/`integrationTest` classes.
+- **8 artifact types per run**: POJO, Repository, Converter, Service, Controller, a project-wide `exceptionHandler`, and optional `unitTest`/`integrationTest` classes.
 - **Scaffolding, preserved by default**: Repository/Converter/Service/Controller are never overwritten once they exist, so hand-written business logic on top of them survives every regeneration (see [ADR 0001](docs/adr/0001-generate-once-never-overwrite.md)).
 - **POJO overwrite is the one configurable exception**, per resource, via `onRegenerate: preserve` (default) or `overwrite`.
 - **Package placement is configurable per layer, globally**, with a per-resource override escape hatch on all 7 layers when one resource needs to live somewhere different.
 - **`@RequestMapping` base path is configurable** globally (a prefix) or per resource (a final, absolute override) (see [ADR 0005](docs/adr/0005-basepath-absolute-not-concatenated.md)).
-- **Automatic resource inference** (`x-allcrud-auto-resource`) is available as an opt-in alternative to marking every path by hand - see the [yml reference](#-allcrud-generatoryml-reference) below.
+- **Automatic resource inference** (`x-allcrud-auto-resource`) is available as an opt-in alternative to marking every path by hand - see the [yml reference](#️-allcrud-generatoryml-reference) below.
 - **Fails fast, loudly**, instead of emitting broken Java: a resource with no `id` property is rejected at generation time with a message naming the resource, not a mysterious `javac` error downstream.
 
 ---
@@ -50,6 +50,17 @@ Before applying the plugin, your consumer project needs:
 
   Skipping either of these is a real, easy mistake to make - the generator has no way to detect it at generation time, and the failure only shows up later as a compile error (`cannot find symbol: class CrudController`) or a missing test base class.
 
+- **The Spring Boot starters the generated code compiles against, declared by you.** Allcrud's POM declares `spring-boot-starter-web`, `-data-jpa` and `-validation` at `runtime` scope, so they never reach your compile classpath. The generated Controller needs Spring Web MVC, the Repository and your entity need `jakarta.persistence`, and the generated POJO needs `jakarta.validation`. Versions come from the Spring Boot BOM (4.1.0, the version Allcrud is built against):
+
+  ```kotlin
+  dependencies {
+      implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
+      implementation("org.springframework.boot:spring-boot-starter-webmvc")
+      implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+      implementation("org.springframework.boot:spring-boot-starter-validation")
+  }
+  ```
+
 - **`io.swagger.core.v3:swagger-annotations`, declared by you.** The generated POJO unconditionally carries `@Schema` (`io.swagger.v3.oas.annotations.media.Schema`) - without this on the compile classpath, the generated POJO fails to compile:
 
   ```kotlin
@@ -69,11 +80,33 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
 - **Spring Boot 4's modularization split `@AutoConfigureMockMvc`'s auto-configuration out of the web starter itself.** The generated `*ControllerIT` classes carry `@AutoConfigureMockMvc` - it silently does nothing without the matching `spring-boot-starter-webmvc-test` test dependency declared alongside `spring-boot-starter-webmvc`/`-web`. (Not Maven-specific - applies to Gradle consumers on Spring Boot 4 too, just declared as `testImplementation` there instead.)
 
 ```xml
+<!-- Manages the Spring Boot starter versions below (4.1.0, the version Allcrud is built against). -->
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.0</version>
+    <relativePath/>
+</parent>
+
 <dependencies>
     <dependency>
         <groupId>io.github.astro-techmath</groupId>
         <artifactId>allcrud</artifactId>
         <version>&lt;version&gt;</version>
+    </dependency>
+
+    <!-- Allcrud declares these at runtime scope; the generated code compiles against them. -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
     <!-- The generated POJO unconditionally carries @Schema
@@ -85,7 +118,7 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
         <version>2.2.52</version>
     </dependency>
 
-    <!-- Only needed if you generate unitTest -->
+    <!-- Only needed if you generate unitTest and/or integrationTest -->
     <dependency>
         <groupId>io.github.astro-techmath</groupId>
         <artifactId>allcrud</artifactId>
@@ -164,8 +197,17 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
        id("io.github.astro-techmath.allcrud-generator") version "<version>"
    }
 
+   repositories {
+       mavenCentral()
+   }
+
    dependencies {
+       implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
        implementation("io.github.astro-techmath:allcrud:<version>")
+       implementation("org.springframework.boot:spring-boot-starter-webmvc")
+       implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+       implementation("org.springframework.boot:spring-boot-starter-validation")
+       implementation("io.swagger.core.v3:swagger-annotations:2.2.52")
        testImplementation(testFixtures("io.github.astro-techmath:allcrud:<version>"))
    }
 
@@ -264,7 +306,7 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
        package: com.acme.web
    ```
 
-4. Hand-write the `Product` entity (Entity generation is out of scope - see [Known Limitations](#-known-limitations-v1)):
+4. Hand-write the `Product` entity (Entity generation is out of scope - see [Known Limitations](#️-known-limitations-v1)):
 
    ```java
    package com.acme.catalog;
@@ -346,12 +388,16 @@ Everything above applies to a Maven consumer too, plus a couple of gotchas that 
 | Service | Per-resource | Always preserved once it exists |
 | Controller | Per-resource | Always preserved once it exists |
 | `exceptionHandler` (`GlobalExceptionHandler` `@ControllerAdvice` stub) | **Global** - one per project, not per-resource | Always preserved once it exists |
-| `unitTest` (`CrudServiceTests` subclass) | Per-resource | Always preserved once it exists |
-| `integrationTest` (`CrudControllerIntegrationTests` subclass) | Per-resource | Always preserved once it exists |
+| `unitTest` (`<Entity>ServiceTest`, a `CrudServiceTests` subclass) | Per-resource | Always preserved once it exists |
+| `integrationTest` (`<Entity>ControllerIT`, a `CrudControllerIntegrationTests` subclass) | Per-resource | Always preserved once it exists |
 
 Notes:
 
-- Only the POJO's overwrite behavior is configurable - everything else is scaffolding meant to carry hand-written logic (`@Query` methods, business rules, custom endpoints), so a blind overwrite would silently destroy it. "Preserve" for POJO is also the default: overwrite is strictly opt-in, never assumed.
+- Only the POJO's overwrite behavior is configurable - everything else (including
+  `unitTest`/`integrationTest`) is scaffolding meant to carry hand-written logic (`@Query` methods,
+  business rules, custom endpoints), so a blind overwrite would silently destroy it. "Preserve" for
+  POJO is also the default: overwrite is strictly opt-in, never assumed. See [ADR
+  0001](docs/adr/0001-generate-once-never-overwrite.md).
 - `unitTest`/`integrationTest` always land under your test source root (`src/test/java` by default), never under the production source root - this isn't configurable.
 - `exceptionHandler` is generated once, independent of the OpenAPI spec's content - it's the one artifact that isn't tied to a resource at all.
 
