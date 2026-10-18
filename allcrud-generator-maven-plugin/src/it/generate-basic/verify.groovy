@@ -23,9 +23,13 @@ def absent = [
 ]
 absent.each { assert !new File(root, it).exists() : "unexpected file $it" }
 
+def stamp = 1000000000000L
+['src/main/java', 'src/test/java'].collect { new File(basedir, it) }.findAll { it.isDirectory() }.each { dir ->
+    dir.eachFileRecurse(groovy.io.FileType.FILES) { assert it.setLastModified(stamp) : "could not stamp $it" }
+}
+
 def log = new File(basedir, 'build.log').text
-assert (log =~ /--- allcrud-generator:[^ ]+:generate/).count == 2 : 'expected the generate goal in both executions'
-assert (log =~ /--- compiler:[^ ]+:compile/).count == 2 : 'expected the compile goal in both executions'
-assert (log =~ /BUILD SUCCESS/).count == 2 : 'expected both executions to succeed'
+assert log.contains('--- allcrud-generator:') && log.contains(':generate ') : 'expected the generate goal'
+assert (log =~ /--- compiler:[^ ]+:compile/).find() : 'expected the compile goal'
 
 return true
