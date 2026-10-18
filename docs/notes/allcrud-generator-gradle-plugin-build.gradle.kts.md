@@ -10,7 +10,7 @@ Boot starters without explicit versions, managed by this same BOM in the
 root module - it doesn't propagate transitively through `project(":")`, so
 it's imported here too.
 
-## Jackson floor — constraint for consumers, dependencyManagement for this build, no generated POM customization
+## Jackson floor — consumer constraint, dependencyManagement here, no generated POM customization
 
 The Spring dependency-management plugin applies the Spring Boot BOM through
 a resolution rule, and that rule wins over Gradle constraints: with only the
