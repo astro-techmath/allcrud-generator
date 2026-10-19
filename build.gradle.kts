@@ -48,6 +48,7 @@ val springBootVersion = "4.1.1"
 val commonsLang3Version = "3.21.0"
 val jacksonBomVersion = project.property("jacksonVersion") as String
 val jacksonAnnotationsVersion = project.property("jacksonAnnotationsVersion") as String
+val handlebarsVersion = project.property("handlebarsVersion") as String
 
 dependencyManagement {
     imports {
@@ -72,7 +73,9 @@ val junitVersion = "6.1.3"
 val snakeYamlVersion = "2.7"
 
 dependencies {
-    implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion")
+    implementation("org.openapitools:openapi-generator:$openapiGeneratorVersion") {
+        exclude(group = "org.openjdk.nashorn", module = "nashorn-core")
+    }
     // See docs/notes/build.gradle.kts.md#snakeyaml-declared-explicitly-despite-already-being-a-transitive-dependency
     implementation("org.yaml:snakeyaml:$snakeYamlVersion")
     constraints {
@@ -85,6 +88,9 @@ dependencies {
             implementation(it) {
                 because("Published floor for GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24, GHSA-wv8q-qhhj-9h54, GHSA-gx83-3vf8-gh7j, GHSA-q4xh-88c3-wmh7, GHSA-wjgm-6hv5-3cvf (fixed in 2.22.3; annotations aligned with databind)")
             }
+        }
+        implementation("com.github.jknack:handlebars:$handlebarsVersion") {
+            because("Handlebars 4.5.2 approved for 0.1.0 (#39)")
         }
     }
     // See docs/notes/build.gradle.kts.md#allcrud-core-test-dependency-scope--testimplementation-avoids-leaking-spring-starters
