@@ -44,9 +44,9 @@ sonar {
     }
 }
 
-val springBootVersion = "4.1.1"
+val springBootVersion = "4.1.2"
 val commonsLang3Version = "3.21.0"
-val jacksonBomVersion = "2.22.3"
+val jacksonBomVersion = "2.22.4"
 
 dependencyManagement {
     imports {
